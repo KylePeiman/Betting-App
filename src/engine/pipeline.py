@@ -6,6 +6,7 @@ from src.fetchers.base import Market
 from src.fetchers.odds_api import OddsAPIFetcher
 from src.fetchers.betfair import BetfairFetcher
 from src.fetchers.sportsdata import SportsDataFetcher
+from src.fetchers.mock import MockFetcher
 from src.storage.db import get_session
 from src.storage.models import Recommendation
 from config.settings import settings
@@ -15,6 +16,7 @@ FETCHER_MAP = {
     "odds_api": OddsAPIFetcher,
     "betfair": BetfairFetcher,
     "sportsdata": SportsDataFetcher,
+    "mock": MockFetcher,
 }
 
 

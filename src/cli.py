@@ -10,6 +10,23 @@ def cli():
     pass
 
 
+@cli.command("list-sports")
+@click.option("--all", "show_all", is_flag=True, help="Include inactive sports.")
+def list_sports(show_all: bool):
+    """List available sport keys from TheOddsAPI (costs 1 API request)."""
+    from src.fetchers.odds_api import OddsAPIFetcher
+    fetcher = OddsAPIFetcher()
+    try:
+        sports = fetcher.list_sports(active_only=not show_all)
+    except Exception as exc:
+        click.echo(f"Error: {exc}", err=True)
+        raise SystemExit(1)
+    click.echo(f"{'Key':<45} {'Group':<20} {'Title'}")
+    click.echo("-" * 90)
+    for s in sorted(sports, key=lambda x: (x.get("group", ""), x.get("key", ""))):
+        click.echo(f"{s['key']:<45} {s.get('group',''):<20} {s.get('title','')}")
+
+
 @cli.command()
 @click.option("--mode", type=click.Choice(["agent", "compute"]), default="compute", show_default=True)
 @click.option("--period", type=click.Choice(["week", "month"]), default="week", show_default=True)
