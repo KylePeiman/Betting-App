@@ -16,6 +16,15 @@ class Settings:
     SPORTSDATA_API_KEY: str = os.getenv("SPORTSDATA_API_KEY", "")
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
 
+    # Kalshi prediction markets
+    KALSHI_API_KEY_ID: str = os.getenv("KALSHI_API_KEY_ID", "")
+    KALSHI_PRIVATE_KEY_PATH: str = os.getenv("KALSHI_PRIVATE_KEY_PATH", "")
+    # Comma-separated category filter; empty = fetch all categories
+    # Available: politics, economics, crypto, sports, weather, entertainment, technology, health
+    KALSHI_CATEGORIES: list[str] = [
+        c for c in os.getenv("KALSHI_CATEGORIES", "").split(",") if c
+    ]
+
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///betting_app.db")
 
@@ -36,7 +45,7 @@ class Settings:
 
     # Engine defaults
     MIN_EV_THRESHOLD: float = float(os.getenv("MIN_EV_THRESHOLD", "0.03"))
-    DEFAULT_SOURCES: list[str] = os.getenv("DEFAULT_SOURCES", "odds_api").split(",")
+    DEFAULT_SOURCES: list[str] = os.getenv("DEFAULT_SOURCES", "kalshi").split(",")
 
 
 settings = Settings()

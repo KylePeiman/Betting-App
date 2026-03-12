@@ -10,6 +10,23 @@ _engine = None
 _SessionLocal = None
 
 
+def _migrate(engine):
+    """Add new columns to existing tables without dropping data."""
+    with engine.connect() as conn:
+        new_columns = [
+            ("sim_positions", "live", "INTEGER DEFAULT 0"),
+            ("sim_positions", "order_ids", "TEXT"),
+        ]
+        for table, col, col_type in new_columns:
+            try:
+                conn.execute(__import__("sqlalchemy").text(
+                    f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"
+                ))
+                conn.commit()
+            except Exception:
+                pass  # column already exists
+
+
 def _get_engine():
     global _engine
     if _engine is None:
@@ -18,6 +35,7 @@ def _get_engine():
             connect_args={"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {},
         )
         Base.metadata.create_all(_engine)
+        _migrate(_engine)
     return _engine
 
 

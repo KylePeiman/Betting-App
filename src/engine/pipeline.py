@@ -7,6 +7,7 @@ from src.fetchers.odds_api import OddsAPIFetcher
 from src.fetchers.betfair import BetfairFetcher
 from src.fetchers.sportsdata import SportsDataFetcher
 from src.fetchers.mock import MockFetcher
+from src.fetchers.kalshi import KalshiFetcher
 from src.storage.db import get_session
 from src.storage.models import Recommendation
 from config.settings import settings
@@ -17,6 +18,7 @@ FETCHER_MAP = {
     "betfair": BetfairFetcher,
     "sportsdata": SportsDataFetcher,
     "mock": MockFetcher,
+    "kalshi": KalshiFetcher,
 }
 
 
@@ -39,6 +41,7 @@ def run(
     period: Literal["week", "month"] = "week",
     sources: list[str] | None = None,
     verbose: bool = True,
+    min_ev: float | None = None,
 ) -> list[Recommendation]:
     """
     Main pipeline entry point.
@@ -77,7 +80,8 @@ def run(
         if verbose:
             print(f"  Analysing {len(all_markets)} markets...")
 
-        recommendations = run_compute(all_markets, min_ev=settings.MIN_EV_THRESHOLD)
+        effective_min_ev = min_ev if min_ev is not None else settings.MIN_EV_THRESHOLD
+        recommendations = run_compute(all_markets, min_ev=effective_min_ev)
 
         if verbose:
             print(f"  Found {len(recommendations)} positive-EV recommendations")
