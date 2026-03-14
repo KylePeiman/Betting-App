@@ -15,6 +15,7 @@ class Settings:
     BETFAIR_CERTS_PATH: str | None = os.getenv("BETFAIR_CERTS_PATH")
     SPORTSDATA_API_KEY: str = os.getenv("SPORTSDATA_API_KEY", "")
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+    POLYMARKET_API_KEY: str = os.getenv("POLYMARKET_API_KEY", "")  # optional; not required for read-only market data
 
     # Kalshi prediction markets
     KALSHI_API_KEY_ID: str = os.getenv("KALSHI_API_KEY_ID", "")

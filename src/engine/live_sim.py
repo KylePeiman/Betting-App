@@ -104,6 +104,13 @@ def _settle_open_positions(db: Session, session_id: int, fetcher, log_file) -> i
             check_ticker = pos.ticker
             if pos.arb_type == "series" and pos.legs:
                 check_ticker = pos.legs[0]["ticker"]
+            elif pos.arb_type == "cross" and pos.legs:
+                # Use Kalshi leg as canonical oracle; find it by source field
+                kalshi_leg = next(
+                    (l for l in pos.legs if l.get("source") == "kalshi"),
+                    pos.legs[0],
+                )
+                check_ticker = kalshi_leg.get("ticker", pos.ticker.replace("CROSS_", "", 1))
             mkt = fetcher.get_market_status(check_ticker)
         except Exception as exc:
             _log(log_file, f"  [ERR] fetch {pos.ticker}: {exc}")
@@ -125,6 +132,9 @@ def _settle_open_positions(db: Session, session_id: int, fetcher, log_file) -> i
                 outcome = "lost"
                 pnl = -pos.cost_cents
         else:
+            # Covers "cross" (cross-platform arb) and directional bets.
+            # For cross arb: uses Kalshi leg as canonical oracle for paper-trade
+            # settlement (ticker=CROSS_<kalshi_id>, side=kalshi_leg side).
             if mkt_result == pos.side:
                 outcome = "won"
                 pnl = pos.contracts * 100.0 - pos.cost_cents
@@ -313,10 +323,11 @@ def _enter_series_arb(db, sim, open_keys, opp, log_file, fetcher=None, live: boo
     sim.current_bankroll_cents -= total_cost
     sim.total_trades += 1
     open_keys.add(event_key)
-    mode_tag = "[LIVE]" if live else ""
+    arb_label = "GUARANTEED" if opp.guaranteed else f"PARTIAL ~{opp.total_cost_cents:.0f}c coverage"
+    mode_tag = "[LIVE] " if live else ""
     _log(log_file,
-        f"  BUY  series-arb {mode_tag} {event_key} | {len(opp.legs)} legs x {sets} set(s)"
-        f" @ {cost_per_set:.0f}c | profit={opp.profit_cents * sets:.0f}c [GUARANTEED]"
+        f"  BUY  series-arb {mode_tag}{event_key} | {len(opp.legs)} legs x {sets} set(s)"
+        f" @ {cost_per_set:.0f}c | profit={opp.profit_cents * sets:.0f}c [{arb_label}]"
         f"  | bankroll=${sim.current_bankroll_cents/100:.4f}"
     )
 
@@ -357,6 +368,55 @@ def _enter_agent_bet(db, sim, open_keys, market, advice, max_position_pct, log_f
     )
 
 
+def _enter_last_second_bet(
+    db, sim, open_keys, entry: dict, contracts: int, log_file,
+    fetcher=None, live: bool = False
+):
+    """Enter a last-second YES bet on a single Kalshi bucket."""
+    import json
+    from src.storage.models import SimPosition
+
+    mkt = entry["market"]
+    ticker = mkt.id
+    if ticker in open_keys:
+        return
+
+    yes_ask = entry["yes_ask_cents"]
+    total_cost = yes_ask * contracts
+    bankroll = sim.current_bankroll_cents
+    if total_cost > bankroll or total_cost < 1:
+        return
+
+    order_ids = None
+    if live and fetcher is not None:
+        leg_dicts = [{"ticker": ticker, "side": "yes", "price_cents": yes_ask}]
+        order_ids = _place_live_legs(fetcher, leg_dicts, contracts, log_file)
+        if order_ids is None:
+            _log(log_file, f"  [LIVE] last-second skipped (fill failed) {ticker}")
+            return
+
+    pos = SimPosition(
+        session_id=sim.id, ticker=ticker, side="yes",
+        entry_price_cents=yes_ask, cost_cents=total_cost,
+        contracts=contracts, ev=0.0, arb_type="last_second",
+        live=1 if live else 0,
+        order_ids=json.dumps(order_ids) if order_ids else None,
+    )
+    pos.legs = [{"ticker": ticker, "side": "yes", "price_cents": yes_ask}]
+    db.add(pos)
+    sim.current_bankroll_cents -= total_cost
+    sim.total_trades += 1
+    open_keys.add(ticker)
+
+    mode_tag = "[LIVE] " if live else ""
+    _log(log_file,
+        f"  BUY  last-second {mode_tag}{ticker} YES @ {yes_ask}¢ x{contracts}"
+        f"  | spot={entry['spot_price']:.4f} ({entry['kraken_pair']})"
+        f"  | closes_in={entry['seconds_to_close']:.0f}s"
+        f"  | bankroll=${sim.current_bankroll_cents/100:.4f}"
+    )
+
+
 def _enter_ev_bet(db, sim, open_keys, rec, max_position_pct, log_file):
     from src.storage.models import SimPosition
 
@@ -389,6 +449,79 @@ def _enter_ev_bet(db, sim, open_keys, rec, max_position_pct, log_file):
 
 
 # ---------------------------------------------------------------------------
+# Cross-platform arb entry helper
+# ---------------------------------------------------------------------------
+
+def _enter_cross_arb(
+    db, sim, open_keys, opp, log_file,
+    live: bool = False,
+    min_profit_cents: float = 3.0,
+):
+    """
+    Enter a cross-platform arb position (sim only for now).
+
+    Settlement note: uses the Kalshi leg as the canonical oracle for paper-trade
+    P&L purposes.  Live Polymarket order placement is out of scope (requires USDC
+    on Polygon); if use_live_orders=True this helper logs a warning and skips.
+    """
+    import json
+    from src.storage.models import SimPosition
+
+    if opp.profit_cents < min_profit_cents:
+        return
+    if opp.settlement_risk == "high":
+        return
+
+    if live:
+        _log(log_file,
+             f"  [CROSS-ARB] Skipping live order — Polymarket live placement not supported: "
+             f"{opp.kalshi_market.event_name[:50]}")
+        return
+
+    key = f"CROSS_{opp.kalshi_market.id}"
+    if key in open_keys:
+        return
+
+    bankroll = sim.current_bankroll_cents
+    cost_per_set = opp.total_cost_cents
+    sets = max(1, int(bankroll * 0.10 // cost_per_set))
+    total_cost = sets * cost_per_set
+    if total_cost > bankroll:
+        return
+
+    # Enrich leg dicts with ticker so settlement can look up Kalshi result
+    kalshi_leg = dict(opp.kalshi_leg, ticker=opp.kalshi_market.id)
+    poly_leg = dict(opp.poly_leg, ticker=opp.poly_market.id)
+    leg_dicts = [kalshi_leg, poly_leg]
+    pos = SimPosition(
+        session_id=sim.id,
+        ticker=key,
+        side=opp.kalshi_leg["side"],
+        entry_price_cents=cost_per_set,
+        cost_cents=total_cost,
+        contracts=sets,
+        ev=opp.profit_pct,
+        arb_type="cross",
+        live=0,
+        order_ids=None,
+    )
+    pos.legs = leg_dicts
+    db.add(pos)
+    sim.current_bankroll_cents -= total_cost
+    sim.total_trades += 1
+    open_keys.add(key)
+
+    _log(log_file,
+        f"  BUY  cross-arb  {key} | {sets} set(s) @ {cost_per_set:.0f}c"
+        f" | profit={opp.profit_cents * sets:.1f}c ({opp.profit_pct:.2%})"
+        f" | risk={opp.settlement_risk} score={opp.match_score:.2f}"
+        f"  | bankroll=${sim.current_bankroll_cents/100:.4f}"
+        f"\n            K: {opp.kalshi_market.event_name[:50]}"
+        f"\n            P: {opp.poly_market.event_name[:50]}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Main loop
 # ---------------------------------------------------------------------------
 
@@ -407,23 +540,43 @@ def run_live_simulation(
     settle_interval_seconds: int = 5,
     categories: list[str] | None = None,
     min_arb_profit_cents: float = 1.0,
+    min_leg_cost_cents: float = 101.0,
     max_position_pct: float = 0.20,
     max_deploy_pct: float = 0.80,
     near_term_minutes: int = 60,
     logs_dir: str = "logs",
     resume_session_id: int | None = None,
     use_live_orders: bool = False,
+    use_last_second: bool = False,
+    ls_entry_window: int = 75,
+    ls_min_yes_cents: int = 70,
+    ls_max_yes_cents: int = 95,
+    ls_edge_buffer_pct: float = 0.15,
+    ls_stability_window_s: int = 15,
+    ls_stability_threshold_pct: float = 0.003,
+    use_polymarket: bool = False,
     # kept for CLI compat, unused
     min_ev: float = 0.005,
     entry_window_seconds: int = 45,
     use_agent: bool = False,
 ) -> None:
     """
-    Arb-only live simulation. Every scan cycle:
+    Arb-only (+ optional last-second + optional cross-platform) live simulation.
+    Every scan cycle:
       1. Settle any resolved positions.
       2. Fetch near-term Kalshi markets.
-      3. Enter guaranteed binary and series arbs.
-    No directional / agent bets.
+      3. Enter guaranteed binary arbs and series arbs.
+         - Guaranteed (exhaustive coverage): always entered.
+         - Partial coverage: entered only when total leg cost >= min_leg_cost_cents
+           (default 101.0 effectively disables partial arbs).
+      4. If use_polymarket=True, also each scan cycle (section B2):
+         - Fetch Polymarket markets for matched categories.
+         - Run match_markets() + scan_cross_arb().
+         - Enter cross-arb positions (sim only — live Polymarket placement not supported).
+      5. If use_last_second=True, also on EVERY TICK:
+         - Update Kraken spot prices for tracked pairs.
+         - Find crypto bucket markets closing within ls_entry_window seconds.
+         - Buy YES on the bucket containing the stable spot price.
     """
     global _RUNNING
     _RUNNING = True
@@ -432,6 +585,11 @@ def run_live_simulation(
     from src.fetchers.kalshi import KalshiFetcher
     from src.engine.arbitrage import scan_binary_arb, scan_series_arb
     from src.storage.models import SimSession, SimPosition
+
+    # Last-second strategy state
+    _ls_trackers: dict = {}          # kraken_pair → PriceTracker
+    _ls_markets_cache: list = []     # near-term markets from last full scan
+    _ls_entered_tickers: set = set() # tickers already entered this close-time cycle
 
     target_categories = categories or ["Crypto", "Economics", "Financials"]
     Path(logs_dir).mkdir(exist_ok=True)
@@ -461,19 +619,39 @@ def run_live_simulation(
     except Exception as exc:
         raise RuntimeError(f"Cannot init Kalshi fetcher: {exc}")
 
+    poly_fetcher = None
+    if use_polymarket:
+        from src.fetchers.polymarket import PolymarketFetcher
+        try:
+            poly_fetcher = PolymarketFetcher(category_filter=target_categories)
+        except Exception as exc:
+            raise RuntimeError(f"Cannot init Polymarket fetcher: {exc}")
+
     import sys
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     with open(log_path, "a", encoding="utf-8") as log_file:
-        mode_label = "ARB-ONLY LIVE" if use_live_orders else "ARB-ONLY SIM"
+        mode_parts = ["LIVE" if use_live_orders else "SIM"]
+        if use_polymarket:
+            mode_parts.append("+CROSS-ARB")
+        if use_last_second:
+            mode_parts.append("+LAST-SEC")
+        mode_label = "ARB-ONLY " + " ".join(mode_parts)
         _log(log_file, "=" * 65)
         _log(log_file,
             f"  SESSION {session_id}  [{mode_label}]  bankroll=${initial_bankroll_usd:.2f}"
             f"  |  scan={interval_seconds}s  tick={settle_interval_seconds}s"
         )
         _log(log_file, f"  categories={target_categories}  |  near_term={near_term_minutes}min")
-        _log(log_file, f"  min_arb_profit={min_arb_profit_cents:.0f}c  |  max_pos={max_position_pct:.0%}  |  max_deploy={max_deploy_pct:.0%}")
+        _log(log_file, f"  min_arb_profit={min_arb_profit_cents:.0f}c  |  min_leg_cost={min_leg_cost_cents:.0f}c  |  max_pos={max_position_pct:.0%}  |  max_deploy={max_deploy_pct:.0%}")
+        if use_last_second:
+            _log(log_file,
+                f"  [LAST-SECOND] entry_window={ls_entry_window}s"
+                f"  yes_ask=[{ls_min_yes_cents},{ls_max_yes_cents}]¢"
+                f"  edge_buf={ls_edge_buffer_pct:.0%}"
+                f"  stability={ls_stability_window_s}s/<{ls_stability_threshold_pct:.1%}"
+            )
         _log(log_file, "=" * 65)
 
         last_scan_at = 0.0
@@ -504,6 +682,68 @@ def run_live_simulation(
                 )
 
             # ----------------------------------------------------------------
+            # A2. Last-second scanner (every tick when enabled)
+            # ----------------------------------------------------------------
+            if use_last_second and _ls_markets_cache:
+                from src.engine.last_second import (
+                    scan_last_second_opportunities,
+                    update_price_trackers,
+                    kraken_pair_for_market,
+                    _PREFIX_TO_KRAKEN,
+                )
+                # Determine which pairs we need to track
+                pairs_needed: set[str] = set()
+                for mkt in _ls_markets_cache:
+                    pair = kraken_pair_for_market(mkt)
+                    if pair:
+                        pairs_needed.add(pair)
+
+                if pairs_needed:
+                    update_price_trackers(_ls_trackers, pairs_needed)
+
+                ls_entries = scan_last_second_opportunities(
+                    _ls_markets_cache, _ls_trackers, now,
+                    entry_window_seconds=ls_entry_window,
+                    min_yes_cents=ls_min_yes_cents,
+                    max_yes_cents=ls_max_yes_cents,
+                    edge_buffer_pct=ls_edge_buffer_pct,
+                    stability_window_s=ls_stability_window_s,
+                    stability_threshold_pct=ls_stability_threshold_pct,
+                )
+
+                for entry in ls_entries:
+                    ticker = entry["market"].id
+                    if ticker in _ls_entered_tickers:
+                        continue
+                    db.refresh(sim)
+                    # Size: 1 contract per opportunity (small, directional bet)
+                    contracts = max(1, int(sim.current_bankroll_cents * 0.05 // entry["yes_ask_cents"]))
+                    contracts = min(contracts, 5)  # cap at 5 contracts
+                    # Use open_keys across all position types
+                    ls_open_keys: set[str] = {
+                        p.ticker for p in db.query(SimPosition).filter(
+                            SimPosition.session_id == session_id,
+                            SimPosition.status == "open",
+                        ).all()
+                    }
+                    _enter_last_second_bet(
+                        db, sim, ls_open_keys, entry, contracts, log_file,
+                        fetcher=fetcher, live=use_live_orders,
+                    )
+                    if ticker in ls_open_keys or contracts >= 1:
+                        _ls_entered_tickers.add(ticker)
+                    db.commit()
+
+                # Prune _ls_entered_tickers for markets that have closed
+                cutoff_dt = now
+                expired = {
+                    t for t in _ls_entered_tickers
+                    if not any(m.id == t and m.starts_at and m.starts_at > cutoff_dt
+                               for m in _ls_markets_cache)
+                }
+                _ls_entered_tickers -= expired
+
+            # ----------------------------------------------------------------
             # B. Full market scan + arb entry (every interval_seconds)
             # ----------------------------------------------------------------
             if now_ts - last_scan_at >= interval_seconds:
@@ -528,6 +768,7 @@ def run_live_simulation(
                     markets, seen_events = _fetch_near_term_markets(
                         fetcher, target_categories, near_term_minutes
                     )
+                    _ls_markets_cache[:] = markets  # update last-second cache
                 except Exception as exc:
                     _log(log_file, f"  ERROR fetching markets: {exc}")
                     markets, seen_events = [], []
@@ -548,12 +789,21 @@ def run_live_simulation(
                 arbs_entered = 0
 
                 binary_opps = scan_binary_arb(markets, min_profit_cents=min_arb_profit_cents)
-                series_opps = [o for o in scan_series_arb(markets, min_profit_cents=min_arb_profit_cents) if o.guaranteed]
+                all_series = scan_series_arb(markets, min_profit_cents=min_arb_profit_cents)
+                series_opps = [
+                    o for o in all_series
+                    if o.guaranteed or o.total_cost_cents >= min_leg_cost_cents
+                ]
+                n_guaranteed = sum(1 for o in series_opps if o.guaranteed)
+                n_partial = len(series_opps) - n_guaranteed
 
                 if binary_opps:
                     _log(log_file, f"  Binary arbs found: {len(binary_opps)}")
                 if series_opps:
-                    _log(log_file, f"  Series arbs found (guaranteed): {len(series_opps)}")
+                    _log(log_file,
+                        f"  Series arbs found: {len(series_opps)}"
+                        f"  (guaranteed={n_guaranteed}  partial={n_partial})"
+                    )
                 if not binary_opps and not series_opps:
                     _log(log_file, "  No arb opportunities this scan.")
 
@@ -585,6 +835,40 @@ def run_live_simulation(
 
                 if arbs_entered:
                     _log(log_file, f"  Entered {arbs_entered} arb position(s) this scan.")
+
+                # --------------------------------------------------------
+                # B2. Cross-platform arb scan (Polymarket, sim only)
+                # --------------------------------------------------------
+                if use_polymarket and poly_fetcher is not None and markets:
+                    from src.engine.cross_arb import match_markets, scan_cross_arb
+                    try:
+                        poly_markets = poly_fetcher.get_markets()
+                        cross_pairs = match_markets(markets, poly_markets)
+                        cross_opps = scan_cross_arb(
+                            cross_pairs,
+                            min_profit_cents=max(min_arb_profit_cents, 3.0),
+                        )
+                        if cross_opps:
+                            _log(log_file, f"  Cross-arb opportunities: {len(cross_opps)}")
+                        cross_open_keys: set[str] = {
+                            p.ticker for p in db.query(SimPosition).filter(
+                                SimPosition.session_id == session_id,
+                                SimPosition.status == "open",
+                            ).all()
+                        }
+                        for opp in cross_opps:
+                            if not _RUNNING or cycle_spent >= spendable:
+                                break
+                            before = sim.current_bankroll_cents
+                            _enter_cross_arb(
+                                db, sim, cross_open_keys, opp, log_file,
+                                live=use_live_orders,
+                            )
+                            spent = before - sim.current_bankroll_cents
+                            cycle_spent += spent
+                    except Exception as exc:
+                        _log(log_file, f"  [CROSS-ARB] fetch/scan error: {exc}")
+
                 db.commit()
 
             # ----------------------------------------------------------------

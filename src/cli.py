@@ -161,6 +161,8 @@ def simulate_list(status: str | None, limit: int):
               help="Only trade events closing within this many minutes from now.")
 @click.option("--min-arb-profit", default=1.0, type=float, show_default=True,
               help="Minimum arb profit in cents to enter.")
+@click.option("--min-leg-cost", default=101.0, type=float, show_default=True,
+              help="Minimum total leg cost in cents for partial series arbs. Default 101.0 effectively disables partial arbs (only guaranteed arbs entered).")
 @click.option("--max-position", default=0.10, type=float, show_default=True,
               help="Max fraction of bankroll per single position.")
 @click.option("--max-deploy", default=0.80, type=float, show_default=True,
@@ -169,6 +171,18 @@ def simulate_list(status: str | None, limit: int):
               help="Directory for log files.")
 @click.option("--resume", default=None, type=int,
               help="Resume an existing session by ID.")
+@click.option("--last-second", "last_second", is_flag=True, default=False,
+              help="Enable last-second price convergence strategy for crypto bucket markets.")
+@click.option("--ls-entry-window", default=75, type=int, show_default=True,
+              help="Seconds before close to start monitoring for last-second entries.")
+@click.option("--ls-min-yes", default=70, type=int, show_default=True,
+              help="Minimum YES ask in cents for last-second entries.")
+@click.option("--ls-max-yes", default=95, type=int, show_default=True,
+              help="Maximum YES ask in cents for last-second entries.")
+@click.option("--ls-edge-buffer", default=0.15, type=float, show_default=True,
+              help="Fraction of bucket width spot must be from edges (0.15 = 15%).")
+@click.option("--polymarket", "use_polymarket", is_flag=True, default=False,
+              help="Enable cross-platform arb scanning against Polymarket (sim only).")
 def live_cmd(
     mode: str | None,
     bankroll: float,
@@ -177,10 +191,17 @@ def live_cmd(
     categories: str,
     near_term: int,
     min_arb_profit: float,
+    min_leg_cost: float,
     max_position: float,
     max_deploy: float,
     logs_dir: str,
     resume: int | None,
+    last_second: bool,
+    ls_entry_window: int,
+    ls_min_yes: int,
+    ls_max_yes: int,
+    ls_edge_buffer: float,
+    use_polymarket: bool,
 ):
     """Run the arb scanner. Use --simulate for paper trading or --live for real orders."""
     if mode is None:
@@ -218,11 +239,18 @@ def live_cmd(
             categories=cat_list,
             near_term_minutes=near_term,
             min_arb_profit_cents=min_arb_profit,
+            min_leg_cost_cents=min_leg_cost,
             max_position_pct=max_position,
             max_deploy_pct=max_deploy,
             logs_dir=logs_dir,
             resume_session_id=resume,
             use_live_orders=use_live_orders,
+            use_last_second=last_second,
+            ls_entry_window=ls_entry_window,
+            ls_min_yes_cents=ls_min_yes,
+            ls_max_yes_cents=ls_max_yes,
+            ls_edge_buffer_pct=ls_edge_buffer,
+            use_polymarket=use_polymarket,
         )
     except RuntimeError as exc:
         click.echo(f"Error: {exc}", err=True)
@@ -549,6 +577,93 @@ def arb_report_cmd():
     session = get_session()
     stats = arb_report(session)
     print_arb_report(stats)
+
+
+# ---------------------------------------------------------------------------
+# cross-arb — scan for cross-platform arbitrage between Kalshi and Polymarket
+# ---------------------------------------------------------------------------
+
+@cli.group("cross-arb")
+def cross_arb():
+    """Scan for cross-platform arbitrage opportunities between Kalshi and Polymarket."""
+    pass
+
+
+@cross_arb.command("scan")
+@click.option("--categories", default="Crypto,Economics,Financials",
+              show_default=True, help="Comma-separated categories to scan on both platforms.")
+@click.option("--min-profit", default=2.0, type=float, show_default=True,
+              help="Minimum profit in cents to report an opportunity.")
+@click.option("--min-match", default=0.85, type=float, show_default=True,
+              help="Minimum match score (0–1) to consider two markets the same event.")
+@click.option("--show-unmatched", is_flag=True, default=False,
+              help="Also show Kalshi markets that had no Polymarket match.")
+def cross_arb_scan(categories: str, min_profit: float, min_match: float, show_unmatched: bool):
+    """Fetch markets from both Kalshi and Polymarket, match events, and report arb opportunities."""
+    from src.fetchers.kalshi import KalshiFetcher
+    from src.fetchers.polymarket import PolymarketFetcher
+    from src.engine.cross_arb import match_markets, scan_cross_arb
+
+    cat_list = [c.strip() for c in categories.split(",")]
+
+    click.echo(f"Fetching Kalshi markets for: {', '.join(cat_list)}...")
+    try:
+        kalshi = KalshiFetcher()
+        kalshi.category_filter = cat_list
+        kalshi_markets = kalshi.get_markets()
+    except Exception as exc:
+        click.echo(f"Error fetching Kalshi markets: {exc}", err=True)
+        raise SystemExit(1)
+    click.echo(f"  {len(kalshi_markets)} Kalshi markets fetched.")
+
+    click.echo(f"Fetching Polymarket markets for: {', '.join(cat_list)}...")
+    try:
+        poly = PolymarketFetcher(category_filter=cat_list)
+        poly_markets = poly.get_markets()
+    except Exception as exc:
+        click.echo(f"Error fetching Polymarket markets: {exc}", err=True)
+        raise SystemExit(1)
+    click.echo(f"  {len(poly_markets)} Polymarket markets fetched.")
+
+    pairs = match_markets(kalshi_markets, poly_markets, min_score=min_match)
+    click.echo(f"\nMatched {len(pairs)} market pairs (min_score={min_match:.2f}).")
+
+    opps = scan_cross_arb(pairs, min_profit_cents=min_profit)
+
+    if opps:
+        click.echo(f"\n{'='*80}")
+        click.echo(f"  CROSS-ARB OPPORTUNITIES  ({len(opps)} found, min_profit={min_profit:.0f}¢)")
+        click.echo(f"{'='*80}")
+        click.echo(
+            f"  {'Direction':<12}  {'Profit¢':>7}  {'ROI':>6}  {'Risk':>6}  "
+            f"{'Score':>5}  {'Closes':>11}  Event"
+        )
+        click.echo(f"  {'-'*75}")
+        for o in opps:
+            closes_str = o.closes_at.strftime("%m-%d %H:%M") if o.closes_at else "—"
+            click.echo(
+                f"  {o.direction:<12}  {o.profit_cents:>7.1f}  {o.profit_pct:>6.2%}  "
+                f"{o.settlement_risk:>6}  {o.match_score:>5.2f}  {closes_str:>11}"
+                f"  {o.kalshi_market.event_name[:50]}"
+            )
+            click.echo(
+                f"    K-leg: {o.kalshi_leg['side'].upper()} @ {o.kalshi_leg['price_cents']}¢  |  "
+                f"P-leg: {o.poly_leg['side'].upper()} @ {o.poly_leg['price_cents']}¢  |  "
+                f"total={o.total_cost_cents:.0f}¢  profit={o.profit_cents:.1f}¢"
+            )
+            click.echo(f"    Poly: {o.poly_market.event_name[:70]}")
+    else:
+        click.echo(f"\nNo cross-arb opportunities found (min_profit={min_profit:.0f}¢).")
+
+    if show_unmatched:
+        matched_kalshi_ids = {p.kalshi_market.id for p in pairs}
+        unmatched = [m for m in kalshi_markets if m.id not in matched_kalshi_ids]
+        if unmatched:
+            click.echo(f"\nUnmatched Kalshi markets ({len(unmatched)}):")
+            for m in unmatched[:20]:
+                click.echo(f"  [{m.category}] {m.event_name}")
+            if len(unmatched) > 20:
+                click.echo(f"  ... and {len(unmatched) - 20} more.")
 
 
 if __name__ == "__main__":

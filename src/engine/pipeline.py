@@ -8,6 +8,7 @@ from src.fetchers.betfair import BetfairFetcher
 from src.fetchers.sportsdata import SportsDataFetcher
 from src.fetchers.mock import MockFetcher
 from src.fetchers.kalshi import KalshiFetcher
+from src.fetchers.polymarket import PolymarketFetcher
 from src.storage.db import get_session
 from src.storage.models import Recommendation
 from config.settings import settings
@@ -19,6 +20,7 @@ FETCHER_MAP = {
     "sportsdata": SportsDataFetcher,
     "mock": MockFetcher,
     "kalshi": KalshiFetcher,
+    "polymarket": PolymarketFetcher,
 }
 
 
