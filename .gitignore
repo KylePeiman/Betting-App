@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Env / secrets
+.env
+*.pem
+
+# DB
+*.db
+*.sqlite
+
+# Logs
+logs/
+
