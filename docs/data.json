@@ -1,0 +1,146 @@
+{
+  "generated_at": "2026-03-16T15:02:04Z",
+  "balance_dollars": 2.87,
+  "sessions": {
+    "sim": [
+      {
+        "id": 2,
+        "started": "2026-03-16 14:58",
+        "status": "running",
+        "strategy": "Last-Sec",
+        "balance": 5.0,
+        "pnl": 0.0,
+        "gain_pct": 0.0,
+        "trades": 5,
+        "w": 0,
+        "l": 0,
+        "v": 0
+      },
+      {
+        "id": 1,
+        "started": "2026-03-16 14:34",
+        "status": "running",
+        "strategy": "Last-Sec",
+        "balance": 5.02,
+        "pnl": 0.02,
+        "gain_pct": 0.4,
+        "trades": 6,
+        "w": 1,
+        "l": 0,
+        "v": 0
+      }
+    ],
+    "live": []
+  },
+  "open_positions": {
+    "sim": [
+      {
+        "session": 1,
+        "type": "Last-Second",
+        "event": "XRP \u00b7 Mar 16 11:00 AM",
+        "contracts": 1,
+        "cost": 0.27,
+        "entered": "03-16 14:59"
+      },
+      {
+        "session": 2,
+        "type": "Last-Second",
+        "event": "BTC \u00b7 Mar 16 11:00 AM",
+        "contracts": 1,
+        "cost": 0.16,
+        "entered": "03-16 14:59"
+      },
+      {
+        "session": 2,
+        "type": "Last-Second",
+        "event": "BTC \u00b7 Mar 16 11:00 AM",
+        "contracts": 1,
+        "cost": 0.88,
+        "entered": "03-16 14:59"
+      },
+      {
+        "session": 2,
+        "type": "Last-Second",
+        "event": "ETHD \u00b7 Mar 16 11:00 AM",
+        "contracts": 1,
+        "cost": 0.99,
+        "entered": "03-16 14:58"
+      },
+      {
+        "session": 2,
+        "type": "Last-Second",
+        "event": "ETH \u00b7 Mar 16 11:00 AM",
+        "contracts": 1,
+        "cost": 0.94,
+        "entered": "03-16 14:58"
+      },
+      {
+        "session": 1,
+        "type": "Last-Second",
+        "event": "BTC \u00b7 Mar 16 11:00 AM",
+        "contracts": 1,
+        "cost": 0.37,
+        "entered": "03-16 14:58"
+      },
+      {
+        "session": 2,
+        "type": "Last-Second",
+        "event": "BTC \u00b7 Mar 16 11:00 AM",
+        "contracts": 1,
+        "cost": 0.37,
+        "entered": "03-16 14:58"
+      },
+      {
+        "session": 1,
+        "type": "Last-Second",
+        "event": "XRPD \u00b7 Mar 16 11:00 AM",
+        "contracts": 1,
+        "cost": 0.99,
+        "entered": "03-16 14:58"
+      },
+      {
+        "session": 1,
+        "type": "Last-Second",
+        "event": "XRPD \u00b7 Mar 16 11:00 AM",
+        "contracts": 1,
+        "cost": 0.96,
+        "entered": "03-16 14:58"
+      },
+      {
+        "session": 1,
+        "type": "Last-Second",
+        "event": "XRP \u00b7 Mar 16 11:00 AM",
+        "contracts": 1,
+        "cost": 0.98,
+        "entered": "03-16 14:58"
+      }
+    ],
+    "live": []
+  },
+  "trade_history": {
+    "sim": [
+      {
+        "result": "WON",
+        "type": "Last-Second",
+        "event": "KXXRP15M-26MAR161100-00",
+        "contracts": 1,
+        "cost": 0.98,
+        "pnl": 0.02,
+        "roi": 2.04,
+        "settled": "03-16 15:00",
+        "session": 1,
+        "legs": [
+          {
+            "ticker": "KXXRP15M-26MAR161100-00",
+            "side": "YES",
+            "entry_cents": 98,
+            "contracts": 1,
+            "result": "WON",
+            "pnl": 0.02
+          }
+        ]
+      }
+    ],
+    "live": []
+  }
+}

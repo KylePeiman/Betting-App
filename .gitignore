@@ -17,5 +17,3 @@ env/
 # Logs
 logs/
 
-# Generated static data (regenerate with scripts/export_dashboard_data.py)
-docs/data.json
