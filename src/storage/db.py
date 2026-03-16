@@ -1,9 +1,10 @@
 """Database setup — SQLite via SQLAlchemy, upgrade-ready for Postgres."""
 from __future__ import annotations
-from sqlalchemy import create_engine
+import threading
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, Session
 
-from src.storage.models import Base
+from src.storage.models import Base, SimPosition
 from config.settings import settings
 
 _engine = None
@@ -39,8 +40,36 @@ def _get_engine():
     return _engine
 
 
+def _run_export() -> None:
+    """Export dashboard data in a background thread. Errors are swallowed so
+    they never affect the trading loop."""
+    try:
+        from scripts.export_dashboard_data import main as export_main
+        export_main()
+    except Exception:
+        pass
+
+
+def _before_commit(session) -> None:
+    """Stash a flag if SimPosition rows are part of this transaction.
+    (session.new/dirty/deleted are cleared before after_commit fires.)"""
+    session.info["_export_pending"] = any(
+        isinstance(obj, SimPosition)
+        for obj in list(session.new) + list(session.dirty) + list(session.deleted)
+    )
+
+
+def _after_commit(session) -> None:
+    """After a successful commit, kick off a background export if positions changed."""
+    if session.info.pop("_export_pending", False):
+        threading.Thread(target=_run_export, daemon=True).start()
+
+
 def get_session() -> Session:
     global _SessionLocal
     if _SessionLocal is None:
         _SessionLocal = sessionmaker(bind=_get_engine(), autocommit=False, autoflush=False)
-    return _SessionLocal()
+    session = _SessionLocal()
+    event.listen(session, "before_commit", _before_commit)
+    event.listen(session, "after_commit", _after_commit)
+    return session
