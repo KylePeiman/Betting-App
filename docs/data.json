@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-16T15:02:20Z",
+  "generated_at": "2026-03-16T15:03:15Z",
   "balance_dollars": 2.87,
   "sessions": {
     "sim": [
@@ -8,12 +8,12 @@
         "started": "2026-03-16 14:58",
         "status": "running",
         "strategy": "Last-Sec",
-        "balance": 4.63,
-        "pnl": -0.37,
-        "gain_pct": -7.4,
+        "balance": 4.66,
+        "pnl": -0.34,
+        "gain_pct": -6.8,
         "trades": 5,
-        "w": 0,
-        "l": 1,
+        "w": 3,
+        "l": 2,
         "v": 0
       },
       {
@@ -41,38 +41,6 @@
         "contracts": 1,
         "cost": 0.27,
         "entered": "03-16 14:59"
-      },
-      {
-        "session": 2,
-        "type": "Last-Second",
-        "event": "BTC \u00b7 Mar 16 11:00 AM",
-        "contracts": 1,
-        "cost": 0.16,
-        "entered": "03-16 14:59"
-      },
-      {
-        "session": 2,
-        "type": "Last-Second",
-        "event": "BTC \u00b7 Mar 16 11:00 AM",
-        "contracts": 1,
-        "cost": 0.88,
-        "entered": "03-16 14:59"
-      },
-      {
-        "session": 2,
-        "type": "Last-Second",
-        "event": "ETHD \u00b7 Mar 16 11:00 AM",
-        "contracts": 1,
-        "cost": 0.99,
-        "entered": "03-16 14:58"
-      },
-      {
-        "session": 2,
-        "type": "Last-Second",
-        "event": "ETH \u00b7 Mar 16 11:00 AM",
-        "contracts": 1,
-        "cost": 0.94,
-        "entered": "03-16 14:58"
       },
       {
         "session": 1,
@@ -103,6 +71,90 @@
   },
   "trade_history": {
     "sim": [
+      {
+        "result": "WON",
+        "type": "Last-Second",
+        "event": "ETH \u00b7 Mar 16 11:00 AM",
+        "contracts": 1,
+        "cost": 0.94,
+        "pnl": 0.06,
+        "roi": 6.38,
+        "settled": "03-16 15:02",
+        "session": 2,
+        "legs": [
+          {
+            "ticker": "KXETH-26MAR1611-B2290",
+            "side": "YES",
+            "entry_cents": 94,
+            "contracts": 1,
+            "result": "WON",
+            "pnl": 0.06
+          }
+        ]
+      },
+      {
+        "result": "WON",
+        "type": "Last-Second",
+        "event": "ETHD \u00b7 Mar 16 11:00 AM",
+        "contracts": 1,
+        "cost": 0.99,
+        "pnl": 0.01,
+        "roi": 1.01,
+        "settled": "03-16 15:02",
+        "session": 2,
+        "legs": [
+          {
+            "ticker": "KXETHD-26MAR1611-T2279.99",
+            "side": "YES",
+            "entry_cents": 99,
+            "contracts": 1,
+            "result": "WON",
+            "pnl": 0.01
+          }
+        ]
+      },
+      {
+        "result": "LOST",
+        "type": "Last-Second",
+        "event": "BTC \u00b7 Mar 16 11:00 AM",
+        "contracts": 1,
+        "cost": 0.88,
+        "pnl": -0.88,
+        "roi": -100.0,
+        "settled": "03-16 15:02",
+        "session": 2,
+        "legs": [
+          {
+            "ticker": "KXBTC-26MAR1611-B73375",
+            "side": "YES",
+            "entry_cents": 88,
+            "contracts": 1,
+            "result": "LOST",
+            "pnl": -0.88
+          }
+        ]
+      },
+      {
+        "result": "WON",
+        "type": "Last-Second",
+        "event": "BTC \u00b7 Mar 16 11:00 AM",
+        "contracts": 1,
+        "cost": 0.16,
+        "pnl": 0.84,
+        "roi": 525.0,
+        "settled": "03-16 15:02",
+        "session": 2,
+        "legs": [
+          {
+            "ticker": "KXBTC-26MAR1611-B73375",
+            "side": "NO",
+            "entry_cents": 16,
+            "contracts": 1,
+            "result": "WON",
+            "pnl": 0.84
+          }
+        ]
+      },
       {
         "result": "LOST",
         "type": "Last-Second",
