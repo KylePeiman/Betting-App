@@ -283,10 +283,17 @@ class KalshiFetcher(BaseFetcher):
         event_ticker: str = event.get("event_ticker", "")
         series_ticker: str = event.get("series_ticker", "")
         mutually_exclusive: bool = event.get("mutually_exclusive", False)
-        # Total raw market count before any filtering — needed for exhaustiveness check
-        total_markets_in_event: int = len(nested)
+
+        # Count markets per close_time so the arb scanner can verify exhaustiveness
+        # within a single hourly bucket, not across the entire multi-hour event.
+        close_time_counts: dict[str, int] = {}
+        for m in nested:
+            ct = m.get("close_time") or m.get("expiration_time") or ""
+            close_time_counts[ct] = close_time_counts.get(ct, 0) + 1
+
         result: list[Market] = []
         for m in nested:
+            ct = m.get("close_time") or m.get("expiration_time") or ""
             parsed = self._market_from_dict(
                 m,
                 event_title=event_title,
@@ -294,7 +301,7 @@ class KalshiFetcher(BaseFetcher):
                 event_ticker=event_ticker,
                 series_ticker=series_ticker,
                 mutually_exclusive=mutually_exclusive,
-                total_markets_in_event=total_markets_in_event,
+                total_markets_in_event=close_time_counts.get(ct, 1),
             )
             if parsed:
                 result.append(parsed)
@@ -359,6 +366,8 @@ class KalshiFetcher(BaseFetcher):
                 "series_ticker": series_ticker,
                 "mutually_exclusive": mutually_exclusive,
                 "total_markets_in_event": total_markets_in_event,
+                "floor_strike": m.get("floor_strike"),
+                "cap_strike": m.get("cap_strike"),
             },
         )
 

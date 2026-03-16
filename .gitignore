@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Env / secrets
+.env
+*.pem
+
+# DB
+*.db
+*.sqlite
+
+# Logs
+logs/
+
+# Generated static data (regenerate with scripts/export_dashboard_data.py)
+docs/data.json

@@ -15,7 +15,10 @@ class Settings:
     BETFAIR_CERTS_PATH: str | None = os.getenv("BETFAIR_CERTS_PATH")
     SPORTSDATA_API_KEY: str = os.getenv("SPORTSDATA_API_KEY", "")
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+    NEWS_API_KEY: str = os.getenv("NEWS_API_KEY", "")
     POLYMARKET_API_KEY: str = os.getenv("POLYMARKET_API_KEY", "")  # optional; not required for read-only market data
+    POLYMARKET_PRIVATE_KEY: str = os.getenv("POLYMARKET_PRIVATE_KEY", "")  # Ethereum private key for live order placement (Polygon)
+    POLYMARKET_CHAIN_ID: int = int(os.getenv("POLYMARKET_CHAIN_ID", "137"))  # 137=Polygon mainnet, 80002=Amoy testnet
 
     # Kalshi prediction markets
     KALSHI_API_KEY_ID: str = os.getenv("KALSHI_API_KEY_ID", "")

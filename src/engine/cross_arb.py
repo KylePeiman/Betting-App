@@ -86,7 +86,9 @@ def _expiry_score(a: "Market", b: "Market") -> float:
     if a.starts_at is None or b.starts_at is None:
         return 0.5  # unknown → neutral
     diff_hours = abs((a.starts_at - b.starts_at).total_seconds()) / 3600
-    return max(0.0, 1.0 - diff_hours / 48)
+    # Use a 30-day (720h) window so cross-platform pairs (Kalshi daily vs
+    # Polymarket monthly) are not automatically penalised to zero.
+    return max(0.0, 1.0 - diff_hours / 720)
 
 
 def _category_score(a: "Market", b: "Market") -> float:

@@ -92,18 +92,23 @@ def scan_series_arb(
     """
     from collections import defaultdict
 
-    # Group by event_ticker
+    # Group by (event_ticker, close_time) so markets from the same event but
+    # different hours don't get merged into one over-broad exhaustiveness check.
     groups: dict[str, list] = defaultdict(list)
     for market in markets:
         meta = market.metadata or {}
         if not meta.get("mutually_exclusive"):
             continue
         event_ticker = meta.get("event_ticker", "")
-        if event_ticker:
-            groups[event_ticker].append(market)
+        if not event_ticker:
+            continue
+        close_time = market.starts_at.isoformat() if market.starts_at else ""
+        group_key = f"{event_ticker}|{close_time}"
+        groups[group_key].append(market)
 
     opps: list[ArbOpportunity] = []
-    for event_ticker, mkt_list in groups.items():
+    for group_key, mkt_list in groups.items():
+        event_ticker = group_key.split("|")[0]
         if len(mkt_list) < 2:
             continue
 

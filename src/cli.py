@@ -4,10 +4,80 @@ import click
 from datetime import datetime, timezone, timedelta
 
 
-@click.group()
-def cli():
-    """Kalshi Betting App — AI-powered and statistical prediction-market recommendations."""
-    pass
+@click.group(invoke_without_command=True)
+@click.option("--simulate", "mode", flag_value="simulate",
+              help="Paper trade — no real orders placed.")
+@click.option("--live", "mode", flag_value="live",
+              help="Place real orders on Kalshi.")
+@click.option("--bankroll", default=None, type=float,
+              help="Starting bankroll in USD.")
+@click.option("--last-second/--no-last-second", "last_second", default=True,
+              help="Enable/disable last-second price convergence strategy (default: on).")
+@click.option("--streaming/--no-streaming", "streaming", default=True,
+              help="Use WebSocket streaming for real-time prices (default: on).")
+@click.option("--prediction", is_flag=True, default=False,
+              help="Enable headline-driven prediction trades via Claude + NewsAPI.")
+@click.pass_context
+def cli(ctx, mode, bankroll, last_second, streaming, prediction):
+    """Kalshi Last-Second Sniper.
+
+    Buys YES on crypto bucket markets in the final ~75s before close when the
+    Kraken spot price is stable and well inside a bucket.
+
+    \b
+    Quick start:
+      python -m src.cli --simulate            # paper trade (last-second on by default)
+      python -m src.cli --simulate --prediction  # + Claude headline trades
+      python -m src.cli --live                # real orders
+    """
+    if ctx.invoked_subcommand is not None:
+        return
+
+    if mode is None:
+        click.echo(ctx.get_help())
+        return
+
+    from src.storage.db import get_session
+    from src.engine.live_sim import run_live_simulation
+
+    use_live_orders = mode == "live"
+    db = get_session()
+
+    if bankroll is None:
+        if use_live_orders:
+            from src.fetchers.kalshi import KalshiFetcher
+            try:
+                balance_cents = KalshiFetcher().get_balance()
+                bankroll = balance_cents / 100
+                click.echo(f"Detected Kalshi balance: ${bankroll:.2f}")
+            except Exception as exc:
+                raise click.UsageError(f"Could not fetch Kalshi balance: {exc}. Pass --bankroll manually.")
+        else:
+            bankroll = 5.00
+
+    if use_live_orders:
+        click.echo("WARNING: --live mode enabled. Real orders will be placed on Kalshi.")
+        click.confirm("Continue?", abort=True)
+
+    try:
+        run_live_simulation(
+            db=db,
+            initial_bankroll_usd=bankroll,
+            interval_seconds=5,
+            settle_interval_seconds=5,
+            categories=["Crypto", "Economics", "Financials"],
+            near_term_minutes=60,
+            max_position_pct=0.10,
+            logs_dir="logs",
+            resume_session_id=None,
+            use_live_orders=use_live_orders,
+            use_last_second=last_second,
+            use_streaming=streaming,
+            use_prediction=prediction,
+        )
+    except RuntimeError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        raise SystemExit(1)
 
 
 # ---------------------------------------------------------------------------
@@ -151,38 +221,38 @@ def simulate_list(status: str | None, limit: int):
               help="Place real orders on Kalshi.")
 @click.option("--bankroll", default=None, type=float,
               help="Starting bankroll in USD. Defaults to Kalshi account balance for --live, $5.00 for --simulate.")
-@click.option("--interval", default=60, type=int, show_default=True,
-              help="Seconds between full market scans.")
+@click.option("--interval", default=15, type=int, show_default=True,
+              help="Seconds between full market scans (REST fetch for market list).")
 @click.option("--settle-interval", default=5, type=int, show_default=True,
               help="Seconds between settlement polls while waiting for a scan.")
 @click.option("--categories", default="Crypto,Economics,Financials",
               show_default=True, help="Comma-separated Kalshi categories to trade.")
 @click.option("--near-term", default=60, type=int, show_default=True,
               help="Only trade events closing within this many minutes from now.")
-@click.option("--min-arb-profit", default=1.0, type=float, show_default=True,
-              help="Minimum arb profit in cents to enter.")
-@click.option("--min-leg-cost", default=101.0, type=float, show_default=True,
-              help="Minimum total leg cost in cents for partial series arbs. Default 101.0 effectively disables partial arbs (only guaranteed arbs entered).")
 @click.option("--max-position", default=0.10, type=float, show_default=True,
               help="Max fraction of bankroll per single position.")
-@click.option("--max-deploy", default=0.80, type=float, show_default=True,
-              help="Max fraction of liquid bankroll to deploy per cycle (keeps a reserve).")
 @click.option("--logs-dir", default="logs", show_default=True,
               help="Directory for log files.")
 @click.option("--resume", default=None, type=int,
               help="Resume an existing session by ID.")
-@click.option("--last-second", "last_second", is_flag=True, default=False,
-              help="Enable last-second price convergence strategy for crypto bucket markets.")
-@click.option("--ls-entry-window", default=75, type=int, show_default=True,
+@click.option("--last-second/--no-last-second", "last_second", default=True,
+              help="Enable/disable last-second price convergence strategy (default: on).")
+@click.option("--streaming/--no-streaming", "streaming", default=True,
+              help="Use WebSocket streaming for real-time prices (default: on).")
+@click.option("--prediction", is_flag=True, default=False,
+              help="Enable headline-driven prediction trades via Claude + NewsAPI.")
+@click.option("--ls-entry-window", default=120, type=int, show_default=True,
               help="Seconds before close to start monitoring for last-second entries.")
 @click.option("--ls-min-yes", default=70, type=int, show_default=True,
               help="Minimum YES ask in cents for last-second entries.")
-@click.option("--ls-max-yes", default=95, type=int, show_default=True,
+@click.option("--ls-max-yes", default=99, type=int, show_default=True,
               help="Maximum YES ask in cents for last-second entries.")
 @click.option("--ls-edge-buffer", default=0.15, type=float, show_default=True,
               help="Fraction of bucket width spot must be from edges (0.15 = 15%).")
-@click.option("--polymarket", "use_polymarket", is_flag=True, default=False,
-              help="Enable cross-platform arb scanning against Polymarket (sim only).")
+@click.option("--ls-min-no", default=3, type=int, show_default=True,
+              help="Minimum NO ask in cents for last-second NO entries.")
+@click.option("--ls-max-no", default=40, type=int, show_default=True,
+              help="Maximum NO ask in cents for last-second NO entries.")
 def live_cmd(
     mode: str | None,
     bankroll: float,
@@ -190,20 +260,23 @@ def live_cmd(
     settle_interval: int,
     categories: str,
     near_term: int,
-    min_arb_profit: float,
-    min_leg_cost: float,
     max_position: float,
-    max_deploy: float,
     logs_dir: str,
     resume: int | None,
     last_second: bool,
+    streaming: bool,
+    prediction: bool,
     ls_entry_window: int,
     ls_min_yes: int,
     ls_max_yes: int,
     ls_edge_buffer: float,
-    use_polymarket: bool,
+    ls_min_no: int,
+    ls_max_no: int,
 ):
-    """Run the arb scanner. Use --simulate for paper trading or --live for real orders."""
+    """Run the last-second sniper with full options.
+
+    For simple usage, prefer: python -m src.cli --simulate / --live
+    """
     if mode is None:
         raise click.UsageError("Specify --simulate (paper trade) or --live (real orders).")
 
@@ -238,19 +311,19 @@ def live_cmd(
             settle_interval_seconds=settle_interval,
             categories=cat_list,
             near_term_minutes=near_term,
-            min_arb_profit_cents=min_arb_profit,
-            min_leg_cost_cents=min_leg_cost,
             max_position_pct=max_position,
-            max_deploy_pct=max_deploy,
             logs_dir=logs_dir,
             resume_session_id=resume,
             use_live_orders=use_live_orders,
             use_last_second=last_second,
+            use_streaming=streaming,
             ls_entry_window=ls_entry_window,
             ls_min_yes_cents=ls_min_yes,
             ls_max_yes_cents=ls_max_yes,
             ls_edge_buffer_pct=ls_edge_buffer,
-            use_polymarket=use_polymarket,
+            ls_min_no_cents=ls_min_no,
+            ls_max_no_cents=ls_max_no,
+            use_prediction=prediction,
         )
     except RuntimeError as exc:
         click.echo(f"Error: {exc}", err=True)
