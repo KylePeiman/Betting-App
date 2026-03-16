@@ -275,6 +275,37 @@ def export_trade_history(db, limit: int = 500) -> tuple[list[dict], list[dict]]:
     return sim_arbs, live_arbs
 
 
+# ── Gist upload ──────────────────────────────────────────────────────────────
+
+def push_to_gist(content: str) -> bool:
+    """PATCH the Gist with updated data.json content. Returns True on success."""
+    import urllib.request
+    from config.settings import settings
+
+    token = settings.GH_GIST_TOKEN
+    gist_id = settings.GH_GIST_ID
+    if not token or not gist_id:
+        return False
+
+    payload = json.dumps({"files": {"data.json": {"content": content}}}).encode()
+    req = urllib.request.Request(
+        f"https://api.github.com/gists/{gist_id}",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "Content-Type": "application/json",
+        },
+        method="PATCH",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
 # ── main ─────────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -301,9 +332,14 @@ def main() -> None:
         "trade_history": {"sim": sim_hist, "live": live_hist},
     }
 
+    content = json.dumps(data, indent=2)
+
     out_path = ROOT / "docs" / "data.json"
-    out_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print(f"Wrote {out_path}")
+    out_path.write_text(content, encoding="utf-8")
+
+    ok = push_to_gist(content)
+
+    print(f"Wrote {out_path}" + (" + Gist updated" if ok else " (Gist skipped — no token)"))
     print(f"  generated_at : {data['generated_at']}")
     print(f"  balance      : {'$' + str(balance_dollars) if balance_dollars is not None else 'n/a'}")
     print(f"  sessions     : {len(sim_sessions)} sim, {len(live_sessions)} live")

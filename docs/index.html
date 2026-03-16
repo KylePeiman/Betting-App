@@ -362,9 +362,11 @@ function connectKraken() {
 // DASHBOARD — data.json loader + renderer
 // ══════════════════════════════════════════════════════════════
 
+const GIST_URL = 'https://gist.githubusercontent.com/KylePeiman/647660296d9b6f59377b879d655907e6/raw/data.json';
+
 async function loadDashboardData() {
   try {
-    const resp = await fetch('./data.json?_=' + Date.now());
+    const resp = await fetch(GIST_URL + '?_=' + Date.now());
     if (!resp.ok) throw new Error('not found');
     const data = await resp.json();
     renderDashboard(data);

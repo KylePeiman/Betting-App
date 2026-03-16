@@ -16,6 +16,10 @@ class Settings:
     SPORTSDATA_API_KEY: str = os.getenv("SPORTSDATA_API_KEY", "")
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
     NEWS_API_KEY: str = os.getenv("NEWS_API_KEY", "")
+    # GitHub Gist (live dashboard data — no repo commits)
+    GH_GIST_TOKEN: str = os.getenv("GH_GIST_TOKEN", "")
+    GH_GIST_ID: str = os.getenv("GH_GIST_ID", "647660296d9b6f59377b879d655907e6")
+
     POLYMARKET_API_KEY: str = os.getenv("POLYMARKET_API_KEY", "")  # optional; not required for read-only market data
     POLYMARKET_PRIVATE_KEY: str = os.getenv("POLYMARKET_PRIVATE_KEY", "")  # Ethereum private key for live order placement (Polygon)
     POLYMARKET_CHAIN_ID: int = int(os.getenv("POLYMARKET_CHAIN_ID", "137"))  # 137=Polygon mainnet, 80002=Amoy testnet
