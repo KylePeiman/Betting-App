@@ -129,13 +129,13 @@
 </header>
 
 <nav class="top-tabs">
-  <button class="top-tab active" data-tab="crypto">Crypto Ticker</button>
-  <button class="top-tab" data-tab="kalshi">Kalshi Dashboard</button>
+  <button class="top-tab" data-tab="crypto">Crypto Ticker</button>
+  <button class="top-tab active" data-tab="kalshi">Kalshi Dashboard</button>
 </nav>
 
 <!-- ════════════════════ CRYPTO TICKER ════════════════════ -->
 <div class="container">
-<div id="panel-crypto" class="tab-panel active">
+<div id="panel-crypto" class="tab-panel">
   <div class="ws-status">
     <span class="ws-dot" id="ws-dot"></span>
     <span id="ws-label">Connecting to Kraken…</span>
@@ -144,7 +144,7 @@
 </div>
 
 <!-- ════════════════════ KALSHI DASHBOARD ════════════════════ -->
-<div id="panel-kalshi" class="tab-panel">
+<div id="panel-kalshi" class="tab-panel active">
 
   <!-- data banner -->
   <div id="dash-banner" class="banner banner-warn hidden">
@@ -751,6 +751,8 @@ function pillResult(r) {
 // ══════════════════════════════════════════════════════════════
 initTickerGrid();
 connectKraken();
+dashLoaded = true;
+loadDashboardData();
 </script>
 </body>
 </html>
