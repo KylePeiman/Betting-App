@@ -71,7 +71,9 @@ def _series_event_ticker(ticker: str) -> str:
 
 
 def _is_live_session(session) -> bool:
-    return "LIVE" in (session.log_path or "").upper()
+    if "LIVE" in (session.log_path or "").upper():
+        return True
+    return "[LIVE" in _read_log_header(session)
 
 
 def _read_log_header(session, chars: int = 600) -> str:

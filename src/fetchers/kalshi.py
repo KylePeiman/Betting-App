@@ -131,6 +131,7 @@ class KalshiFetcher(BaseFetcher):
             "ticker": ticker,
             "action": "buy",
             "type": "limit",
+            "time_in_force": "immediate_or_cancel",
             "side": side,
             "count": count,
             f"{side}_price": int(price_cents),
