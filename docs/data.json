@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-20T12:46:16Z",
+  "generated_at": "2026-03-20T12:56:39Z",
   "balance_dollars": 4.44,
   "sessions": {
     "sim": [
@@ -44,6 +44,19 @@
       }
     ],
     "live": [
+      {
+        "id": 11,
+        "started": "2026-03-20 12:48",
+        "status": "running",
+        "strategy": "Last-Sec",
+        "balance": 4.44,
+        "pnl": 0.0,
+        "gain_pct": 0.0,
+        "trades": 0,
+        "w": 0,
+        "l": 0,
+        "v": 0
+      },
       {
         "id": 10,
         "started": "2026-03-18 21:49",

@@ -245,7 +245,7 @@ def simulate_list(status: str | None, limit: int):
               help="Seconds before close to start monitoring for last-second entries.")
 @click.option("--ls-min-yes", default=70, type=int, show_default=True,
               help="Minimum YES ask in cents for last-second entries.")
-@click.option("--ls-max-yes", default=99, type=int, show_default=True,
+@click.option("--ls-max-yes", default=92, type=int, show_default=True,
               help="Maximum YES ask in cents for last-second entries.")
 @click.option("--ls-edge-buffer", default=0.15, type=float, show_default=True,
               help="Fraction of bucket width spot must be from edges (0.15 = 15%).")

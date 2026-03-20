@@ -395,7 +395,7 @@ def run_live_simulation(
     use_last_second: bool = True,
     ls_entry_window: int = 300,  # default matches last_second.ENTRY_WINDOW_SECONDS
     ls_min_yes_cents: int = 70,
-    ls_max_yes_cents: int = 99,
+    ls_max_yes_cents: int = 92,
     ls_edge_buffer_pct: float = 0.15,
     ls_stability_window_s: int = 15,
     ls_stability_threshold_pct: float = 0.003,
@@ -736,6 +736,9 @@ def run_live_simulation(
                         else:
                             alloc = min(sim.current_bankroll_cents * 0.025, ask_cents * 5)
                         contracts = max(1, int(alloc // ask_cents))
+                        # Cap high-ask trades at 1 contract to limit tail risk
+                        if ask_cents >= 90:
+                            contracts = min(contracts, 1)
                         ls_open_keys: set[str] = {
                             f"{p.ticker}_{p.side}" for p in db.query(SimPosition).filter(
                                 SimPosition.session_id == session_id,
