@@ -700,6 +700,58 @@ def run_live_simulation(
                         directional_margin_pct=ls_directional_margin_pct,
                     )
 
+                    # Log rejection reasons when markets are in-window but nothing qualifies
+                    if not ls_entries:
+                        in_window = [
+                            m for m in scan_markets
+                            if m.starts_at and 0 < (m.starts_at - now).total_seconds() <= ls_entry_window
+                        ]
+                        if in_window:
+                            reject_lines = []
+                            seen_assets: set[str] = set()
+                            for mkt in in_window:
+                                pair = kraken_pair_for_market(mkt)
+                                if pair in seen_assets:
+                                    continue
+                                seen_assets.add(pair or mkt.id)
+                                tracker = _ls_trackers.get(pair) if pair else None
+                                spot = tracker.latest() if tracker else None
+                                stable = tracker.is_stable(ls_stability_window_s, ls_stability_threshold_pct) if tracker else False
+                                floor_s = mkt.metadata.get("floor_strike")
+                                cap_s = mkt.metadata.get("cap_strike")
+                                secs = (mkt.starts_at - now).total_seconds()
+                                if spot is None:
+                                    reason = "no spot price"
+                                elif not stable:
+                                    obs = tracker.observation_count() if tracker else 0
+                                    reason = f"unstable (obs={obs})"
+                                elif floor_s is not None and cap_s is not None:
+                                    try:
+                                        bw = float(cap_s) - float(floor_s)
+                                        buf = ls_edge_buffer_pct * bw
+                                        mf = spot - float(floor_s)
+                                        mc = float(cap_s) - spot
+                                        if not (float(floor_s) <= spot < float(cap_s)):
+                                            reason = f"spot={spot} outside bucket [{floor_s},{cap_s})"
+                                        elif mf < buf:
+                                            reason = f"edge-fail floor: {mf:.4f} < {buf:.4f} (need {buf - mf:.4f} more)"
+                                        elif mc < buf:
+                                            reason = f"edge-fail cap: {mc:.4f} < {buf:.4f} (need {buf - mc:.4f} more)"
+                                        else:
+                                            yes_ask = mkt.selections[0].metadata.get("yes_ask") if mkt.selections else None
+                                            reason = f"ask={yes_ask}¢ out of range [{ls_min_yes_cents},{ls_max_yes_cents}]"
+                                    except (TypeError, ValueError):
+                                        reason = "parse error"
+                                else:
+                                    reason = "directional: no edge"
+                                reject_lines.append(
+                                    f"    {pair or mkt.id}  spot={spot}  {secs:.0f}s  → {reason}"
+                                )
+                            _log(log_file,
+                                f"  [LS] {len(in_window)} in-window market(s), no entries:\n"
+                                + "\n".join(reject_lines)
+                            )
+
                     for entry in ls_entries:
                         ticker = entry["market"].id
                         side = entry.get("side", "yes")
