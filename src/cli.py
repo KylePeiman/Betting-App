@@ -751,5 +751,91 @@ def cross_arb_scan(categories: str, min_profit: float, min_match: float, show_un
                 click.echo(f"  ... and {len(unmatched) - 20} more.")
 
 
+# ---------------------------------------------------------------------------
+# weather — NOAA/NWS weather market strategy
+# ---------------------------------------------------------------------------
+
+@cli.group()
+def weather():
+    """Weather market trading strategy (NOAA/NWS vs Kalshi)."""
+    pass
+
+
+@weather.command("scan")
+@click.option("--min-edge", default=None, type=float,
+              help="Minimum edge to show (default: WEATHER_MIN_EDGE env var)")
+def weather_scan(min_edge):
+    """One-shot scan: print weather market opportunities with NWS edge."""
+    from src.fetchers.kalshi import KalshiFetcher
+    from src.weather.scanner import scan_weather_markets
+    from config import settings
+
+    edge = min_edge if min_edge is not None else settings.WEATHER_MIN_EDGE
+    fetcher = KalshiFetcher()
+    opps = scan_weather_markets(fetcher, min_edge=edge)
+
+    if not opps:
+        click.echo("No opportunities found.")
+        return
+
+    # Print a clean table: Market | NWS% | Kalshi% | Edge | Side
+    click.echo(
+        f"\n{'Market':<55} {'NWS%':>6} {'Kalshi%':>8}"
+        f" {'Edge':>6} {'Side':>5}"
+    )
+    click.echo("-" * 85)
+    for o in opps:
+        name = (
+            o["market"].name[:52] + "..."
+            if len(o["market"].name) > 55
+            else o["market"].name
+        )
+        click.echo(
+            f"{name:<55} {o['nws_prob']*100:>5.1f}%"
+            f" {o['kalshi_prob']*100:>7.1f}%"
+            f" {o['edge']*100:>5.1f}% {o['side']:>5}"
+        )
+
+
+@weather.command("run")
+@click.option("--simulate", "mode", flag_value="simulate", default=True,
+              help="Paper trade (default)")
+@click.option("--live", "mode", flag_value="live",
+              help="Place real orders")
+@click.option("--bankroll", default=5.0, type=float, show_default=True,
+              help="Starting bankroll in dollars")
+@click.option("--interval", default=None, type=int,
+              help="Scan interval seconds (default: WEATHER_INTERVAL env var)")
+@click.option("--min-edge", default=None, type=float,
+              help="Min edge to enter (default: WEATHER_MIN_EDGE env var)")
+@click.option("--resume", default=None, type=int,
+              help="Resume session ID")
+def weather_run(mode, bankroll, interval, min_edge, resume):
+    """Run the weather trading strategy (continuous loop)."""
+    from src.weather.strategy import run_weather_strategy
+    from config import settings
+
+    live = mode == "live"
+    scan_interval = (
+        interval if interval is not None else settings.WEATHER_INTERVAL
+    )
+    edge = min_edge if min_edge is not None else settings.WEATHER_MIN_EDGE
+
+    click.echo(
+        f"Starting weather strategy ({'LIVE' if live else 'SIM'})"
+        f" | bankroll=${bankroll:.2f}"
+        f" | interval={scan_interval}s"
+        f" | min_edge={edge:.0%}"
+    )
+
+    run_weather_strategy(
+        live=live,
+        bankroll_cents=bankroll * 100,
+        interval_seconds=scan_interval,
+        min_edge=edge,
+        session_id=resume,
+    )
+
+
 if __name__ == "__main__":
     cli()
