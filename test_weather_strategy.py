@@ -379,6 +379,41 @@ class TestEnterPosition:
         assert session.total_trades == 0
         assert session.voided == 1
 
+    def test_live_no_fill_does_not_log_enter(self) -> None:
+        """KPE-48: voided live position must NOT produce an ENTER log."""
+        session = _make_session(bankroll=1000.0)
+        opp = _make_opp(ask_cents=40)
+        db = MagicMock()
+        fetcher = MagicMock()
+        fetcher.place_order.return_value = {
+            "order_id": "ORD-789",
+            "status": "cancelled",
+            "fill_count": 0,
+        }
+        log_file = StringIO()
+
+        _enter_position(opp, session, fetcher, True, db, log_file)
+
+        log_output = log_file.getvalue()
+        assert "no fill" in log_output
+        assert "reverting" in log_output
+        assert "ENTER" not in log_output
+
+    def test_live_exception_does_not_log_enter(self) -> None:
+        """KPE-48: failed live order must NOT produce an ENTER log."""
+        session = _make_session(bankroll=1000.0)
+        opp = _make_opp(ask_cents=40)
+        db = MagicMock()
+        fetcher = MagicMock()
+        fetcher.place_order.side_effect = Exception("timeout")
+        log_file = StringIO()
+
+        _enter_position(opp, session, fetcher, True, db, log_file)
+
+        log_output = log_file.getvalue()
+        assert "order FAILED" in log_output
+        assert "ENTER" not in log_output
+
     def test_live_order_exception_reverts(self) -> None:
         """Live order exception reverts bankroll and voids position."""
         session = _make_session(bankroll=1000.0)
@@ -456,6 +491,55 @@ class TestRunWeatherStrategy:
         assert isinstance(added, SimSession)
         assert added.initial_bankroll_cents == 500
         assert added.status == "stopped"
+
+    @patch("src.weather.strategy.KalshiFetcher")
+    @patch("src.weather.strategy.get_session")
+    @patch("src.weather.strategy.scan_weather_markets")
+    @patch("src.weather.strategy.time")
+    @patch("builtins.open", create=True)
+    def test_resume_logs_session_bankroll_not_cli_arg(
+        self,
+        mock_open_builtin: MagicMock,
+        mock_time: MagicMock,
+        mock_scan: MagicMock,
+        mock_get_session: MagicMock,
+        mock_fetcher_cls: MagicMock,
+    ) -> None:
+        """KPE-49: resumed session startup log uses session balance, not CLI arg."""
+        from src.weather.strategy import run_weather_strategy
+
+        db = MagicMock()
+        mock_get_session.return_value = db
+        mock_fetcher_cls.return_value = MagicMock()
+        mock_scan.return_value = []
+
+        log_buf = StringIO()
+        mock_open_builtin.return_value = log_buf
+
+        mock_time.time.return_value = 0.0
+        mock_time.sleep.side_effect = KeyboardInterrupt
+
+        # Resumed session has 750c, but CLI argument is 500c.
+        resumed = _make_session(session_id=10, bankroll=750.0)
+        resumed.log_path = "logs/test_resume.log"
+        db.get.return_value = resumed
+        db.query.return_value.filter.return_value.all.return_value = []
+
+        # Prevent the finally block from closing our StringIO.
+        log_buf.close = MagicMock()
+
+        run_weather_strategy(
+            live=False,
+            bankroll_cents=500,
+            interval_seconds=300,
+            min_edge=0.05,
+            session_id=10,
+        )
+
+        log_output = log_buf.getvalue()
+        # Should show $7.50 (session balance), NOT $5.00 (CLI arg).
+        assert "$7.50" in log_output
+        assert "$5.00" not in log_output
 
     @patch("src.weather.strategy.KalshiFetcher")
     @patch("src.weather.strategy.get_session")

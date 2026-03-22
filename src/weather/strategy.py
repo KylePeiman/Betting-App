@@ -222,6 +222,8 @@ def _enter_position(
                 session.total_trades -= 1
                 position.status = "voided"
                 session.voided += 1
+                db.commit()
+                return
 
             db.commit()
         except Exception as exc:
@@ -235,6 +237,7 @@ def _enter_position(
             position.status = "voided"
             session.voided += 1
             db.commit()
+            return
 
     _log(
         log_file,
@@ -329,7 +332,7 @@ def run_weather_strategy(
             log_file,
             f"Weather strategy started [{mode_label}] "
             f"session={session.id} "
-            f"bankroll=${bankroll_cents / 100:.2f} "
+            f"bankroll=${session.current_bankroll_cents / 100:.2f} "
             f"interval={interval_seconds}s "
             f"min_edge={min_edge}",
         )
