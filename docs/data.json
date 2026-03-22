@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-03-21T22:22:05Z",
-  "balance_dollars": 7.1,
+  "generated_at": "2026-03-22T14:21:08Z",
+  "balance_dollars": 7.03,
   "sessions": {
     "sim": [
       {
@@ -45,9 +45,35 @@
     ],
     "live": [
       {
+        "id": 14,
+        "started": "2026-03-22 12:03",
+        "status": "running",
+        "strategy": "Last-Sec",
+        "balance": 7.03,
+        "pnl": 0.19,
+        "gain_pct": 2.78,
+        "trades": 1,
+        "w": 1,
+        "l": 0,
+        "v": 0
+      },
+      {
+        "id": 13,
+        "started": "2026-03-21 23:51",
+        "status": "stopped",
+        "strategy": "Last-Sec",
+        "balance": 6.84,
+        "pnl": -0.26,
+        "gain_pct": -3.66,
+        "trades": 9,
+        "w": 8,
+        "l": 1,
+        "v": 0
+      },
+      {
         "id": 12,
         "started": "2026-03-20 12:56",
-        "status": "running",
+        "status": "stopped",
         "strategy": "Last-Sec",
         "balance": 7.1,
         "pnl": 2.66,
@@ -7917,219 +7943,219 @@
             "pnl": 0.04
           }
         ]
-      },
-      {
-        "result": "WON",
-        "type": "Last-Second",
-        "event": "KXXRP15M-26MAR181330-30",
-        "contracts": 1,
-        "cost": 0.99,
-        "pnl": 0.01,
-        "roi": 1.01,
-        "settled": "03-18 17:31",
-        "session": 8,
-        "legs": [
-          {
-            "ticker": "KXXRP15M-26MAR181330-30",
-            "side": "YES",
-            "entry_cents": 99,
-            "contracts": 1,
-            "result": "WON",
-            "pnl": 0.01
-          }
-        ]
-      },
-      {
-        "result": "WON",
-        "type": "Last-Second",
-        "event": "KXSOL15M-26MAR181315-15",
-        "contracts": 1,
-        "cost": 0.83,
-        "pnl": 0.17,
-        "roi": 20.48,
-        "settled": "03-18 17:16",
-        "session": 8,
-        "legs": [
-          {
-            "ticker": "KXSOL15M-26MAR181315-15",
-            "side": "YES",
-            "entry_cents": 83,
-            "contracts": 1,
-            "result": "WON",
-            "pnl": 0.17
-          }
-        ]
-      },
-      {
-        "result": "WON",
-        "type": "Last-Second",
-        "event": "BTC Daily \u00b7 Mar 18 1:00 PM",
-        "contracts": 7,
-        "cost": 6.93,
-        "pnl": 0.07,
-        "roi": 1.01,
-        "settled": "03-18 17:02",
-        "session": 8,
-        "legs": [
-          {
-            "ticker": "KXBTCD-26MAR1813-T70599.99",
-            "side": "YES",
-            "entry_cents": 99,
-            "contracts": 7,
-            "result": "WON",
-            "pnl": 0.07
-          }
-        ]
-      },
-      {
-        "result": "WON",
-        "type": "Last-Second",
-        "event": "BTC Daily \u00b7 Mar 18 1:00 PM",
-        "contracts": 2,
-        "cost": 1.98,
-        "pnl": 0.02,
-        "roi": 1.01,
-        "settled": "03-18 17:02",
-        "session": 8,
-        "legs": [
-          {
-            "ticker": "KXBTCD-26MAR1813-T71099.99",
-            "side": "YES",
-            "entry_cents": 99,
-            "contracts": 2,
-            "result": "WON",
-            "pnl": 0.02
-          }
-        ]
-      },
-      {
-        "result": "WON",
-        "type": "Last-Second",
-        "event": "BTC Daily \u00b7 Mar 18 1:00 PM",
-        "contracts": 1,
-        "cost": 0.99,
-        "pnl": 0.01,
-        "roi": 1.01,
-        "settled": "03-18 17:02",
-        "session": 8,
-        "legs": [
-          {
-            "ticker": "KXBTCD-26MAR1813-T70899.99",
-            "side": "YES",
-            "entry_cents": 99,
-            "contracts": 1,
-            "result": "WON",
-            "pnl": 0.01
-          }
-        ]
-      },
-      {
-        "result": "WON",
-        "type": "Last-Second",
-        "event": "KXETH15M-26MAR181245-45",
-        "contracts": 7,
-        "cost": 6.65,
-        "pnl": 0.35,
-        "roi": 5.26,
-        "settled": "03-18 16:46",
-        "session": 8,
-        "legs": [
-          {
-            "ticker": "KXETH15M-26MAR181245-45",
-            "side": "YES",
-            "entry_cents": 95,
-            "contracts": 7,
-            "result": "WON",
-            "pnl": 0.35
-          }
-        ]
-      },
-      {
-        "result": "WON",
-        "type": "Last-Second",
-        "event": "KXXRP15M-26MAR181245-45",
-        "contracts": 2,
-        "cost": 1.98,
-        "pnl": 0.02,
-        "roi": 1.01,
-        "settled": "03-18 16:46",
-        "session": 8,
-        "legs": [
-          {
-            "ticker": "KXXRP15M-26MAR181245-45",
-            "side": "YES",
-            "entry_cents": 99,
-            "contracts": 2,
-            "result": "WON",
-            "pnl": 0.02
-          }
-        ]
-      },
-      {
-        "result": "WON",
-        "type": "Last-Second",
-        "event": "BTC Daily \u00b7 Mar 18 12:00 PM",
-        "contracts": 7,
-        "cost": 6.93,
-        "pnl": 0.07,
-        "roi": 1.01,
-        "settled": "03-18 16:03",
-        "session": 8,
-        "legs": [
-          {
-            "ticker": "KXBTCD-26MAR1812-T70199.99",
-            "side": "YES",
-            "entry_cents": 99,
-            "contracts": 7,
-            "result": "WON",
-            "pnl": 0.07
-          }
-        ]
-      },
-      {
-        "result": "WON",
-        "type": "Last-Second",
-        "event": "BTC Daily \u00b7 Mar 18 12:00 PM",
-        "contracts": 1,
-        "cost": 0.99,
-        "pnl": 0.01,
-        "roi": 1.01,
-        "settled": "03-18 16:03",
-        "session": 8,
-        "legs": [
-          {
-            "ticker": "KXBTCD-26MAR1812-T71299.99",
-            "side": "YES",
-            "entry_cents": 99,
-            "contracts": 1,
-            "result": "WON",
-            "pnl": 0.01
-          }
-        ]
-      },
-      {
-        "result": "WON",
-        "type": "Last-Second",
-        "event": "BTC Daily \u00b7 Mar 18 12:00 PM",
-        "contracts": 1,
-        "cost": 0.98,
-        "pnl": 0.02,
-        "roi": 2.04,
-        "settled": "03-18 16:03",
-        "session": 8,
-        "legs": [
-          {
-            "ticker": "KXBTCD-26MAR1812-T70999.99",
-            "side": "YES",
-            "entry_cents": 98,
-            "contracts": 1,
-            "result": "WON",
-            "pnl": 0.02
-          }
-        ]
       }
     ],
     "live": [
+      {
+        "result": "WON",
+        "type": "Last-Second",
+        "event": "BTC \u00b7 Mar 22 10:00 AM",
+        "contracts": 1,
+        "cost": 0.79,
+        "pnl": 0.21,
+        "roi": 26.58,
+        "settled": "03-22 14:02",
+        "session": 14,
+        "legs": [
+          {
+            "ticker": "KXBTC-26MAR2210-B68750",
+            "side": "YES",
+            "entry_cents": 79,
+            "contracts": 1,
+            "result": "WON",
+            "pnl": 0.21
+          }
+        ]
+      },
+      {
+        "result": "WON",
+        "type": "Last-Second",
+        "event": "BTC \u00b7 Mar 21 10:00 PM",
+        "contracts": 1,
+        "cost": 0.84,
+        "pnl": 0.16,
+        "roi": 19.05,
+        "settled": "03-22 02:02",
+        "session": 13,
+        "legs": [
+          {
+            "ticker": "KXBTC-26MAR2122-B68950",
+            "side": "YES",
+            "entry_cents": 84,
+            "contracts": 1,
+            "result": "WON",
+            "pnl": 0.16
+          }
+        ]
+      },
+      {
+        "result": "WON",
+        "type": "Last-Second",
+        "event": "KXXRP15M-26MAR212115-15",
+        "contracts": 1,
+        "cost": 0.81,
+        "pnl": 0.19,
+        "roi": 23.46,
+        "settled": "03-22 01:15",
+        "session": 13,
+        "legs": [
+          {
+            "ticker": "KXXRP15M-26MAR212115-15",
+            "side": "YES",
+            "entry_cents": 81,
+            "contracts": 1,
+            "result": "WON",
+            "pnl": 0.19
+          }
+        ]
+      },
+      {
+        "result": "WON",
+        "type": "Last-Second",
+        "event": "XRPD \u00b7 Mar 21 8:00 PM",
+        "contracts": 1,
+        "cost": 0.92,
+        "pnl": 0.08,
+        "roi": 8.7,
+        "settled": "03-22 00:31",
+        "session": 13,
+        "legs": [
+          {
+            "ticker": "KXXRPD-26MAR2120-T1.3999",
+            "side": "YES",
+            "entry_cents": 92,
+            "contracts": 1,
+            "result": "WON",
+            "pnl": 0.08
+          }
+        ]
+      },
+      {
+        "result": "WON",
+        "type": "Last-Second",
+        "event": "KXBTC15M-26MAR212030-30",
+        "contracts": 1,
+        "cost": 0.9,
+        "pnl": 0.1,
+        "roi": 11.11,
+        "settled": "03-22 00:30",
+        "session": 13,
+        "legs": [
+          {
+            "ticker": "KXBTC15M-26MAR212030-30",
+            "side": "YES",
+            "entry_cents": 90,
+            "contracts": 1,
+            "result": "WON",
+            "pnl": 0.1
+          }
+        ]
+      },
+      {
+        "result": "WON",
+        "type": "Last-Second",
+        "event": "ETHD \u00b7 Mar 21 8:00 PM",
+        "contracts": 1,
+        "cost": 0.88,
+        "pnl": 0.12,
+        "roi": 13.64,
+        "settled": "03-22 00:03",
+        "session": 13,
+        "legs": [
+          {
+            "ticker": "KXETHD-26MAR2120-T2069.99",
+            "side": "YES",
+            "entry_cents": 88,
+            "contracts": 1,
+            "result": "WON",
+            "pnl": 0.12
+          }
+        ]
+      },
+      {
+        "result": "LOST",
+        "type": "Last-Second",
+        "event": "BTC \u00b7 Mar 21 8:00 PM",
+        "contracts": 1,
+        "cost": 0.87,
+        "pnl": -0.87,
+        "roi": -100.0,
+        "settled": "03-22 00:03",
+        "session": 13,
+        "legs": [
+          {
+            "ticker": "KXBTC-26MAR2120-B68650",
+            "side": "YES",
+            "entry_cents": 87,
+            "contracts": 1,
+            "result": "LOST",
+            "pnl": -0.87
+          }
+        ]
+      },
+      {
+        "result": "WON",
+        "type": "Last-Second",
+        "event": "BTC Daily \u00b7 Mar 21 8:00 PM",
+        "contracts": 1,
+        "cost": 0.92,
+        "pnl": 0.08,
+        "roi": 8.7,
+        "settled": "03-22 00:03",
+        "session": 13,
+        "legs": [
+          {
+            "ticker": "KXBTCD-26MAR2120-T68599.99",
+            "side": "YES",
+            "entry_cents": 92,
+            "contracts": 1,
+            "result": "WON",
+            "pnl": 0.08
+          }
+        ]
+      },
+      {
+        "result": "WON",
+        "type": "Last-Second",
+        "event": "BTC \u00b7 Mar 21 8:00 PM",
+        "contracts": 1,
+        "cost": 0.87,
+        "pnl": 0.13,
+        "roi": 14.94,
+        "settled": "03-22 00:02",
+        "session": 13,
+        "legs": [
+          {
+            "ticker": "KXBTC-26MAR2120-B68850",
+            "side": "YES",
+            "entry_cents": 87,
+            "contracts": 1,
+            "result": "WON",
+            "pnl": 0.13
+          }
+        ]
+      },
+      {
+        "result": "WON",
+        "type": "Last-Second",
+        "event": "BTC Daily \u00b7 Mar 21 8:00 PM",
+        "contracts": 1,
+        "cost": 0.89,
+        "pnl": 0.11,
+        "roi": 12.36,
+        "settled": "03-22 00:02",
+        "session": 13,
+        "legs": [
+          {
+            "ticker": "KXBTCD-26MAR2120-T68499.99",
+            "side": "YES",
+            "entry_cents": 89,
+            "contracts": 1,
+            "result": "WON",
+            "pnl": 0.11
+          }
+        ]
+      },
       {
         "result": "WON",
         "type": "Last-Second",
