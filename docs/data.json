@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-03-22T14:21:08Z",
-  "balance_dollars": 7.03,
+  "generated_at": "2026-03-22T15:15:05Z",
+  "balance_dollars": 6.12,
   "sessions": {
     "sim": [
       {
@@ -49,12 +49,12 @@
         "started": "2026-03-22 12:03",
         "status": "running",
         "strategy": "Last-Sec",
-        "balance": 7.03,
-        "pnl": 0.19,
-        "gain_pct": 2.78,
-        "trades": 1,
+        "balance": 6.12,
+        "pnl": -0.72,
+        "gain_pct": -10.53,
+        "trades": 2,
         "w": 1,
-        "l": 0,
+        "l": 1,
         "v": 0
       },
       {
@@ -7922,30 +7922,30 @@
             "pnl": 0.07
           }
         ]
-      },
-      {
-        "result": "WON",
-        "type": "Last-Second",
-        "event": "KXBTC15M-26MAR181330-30",
-        "contracts": 2,
-        "cost": 1.96,
-        "pnl": 0.04,
-        "roi": 2.04,
-        "settled": "03-18 17:31",
-        "session": 8,
-        "legs": [
-          {
-            "ticker": "KXBTC15M-26MAR181330-30",
-            "side": "YES",
-            "entry_cents": 98,
-            "contracts": 2,
-            "result": "WON",
-            "pnl": 0.04
-          }
-        ]
       }
     ],
     "live": [
+      {
+        "result": "LOST",
+        "type": "Last-Second",
+        "event": "BTC \u00b7 Mar 22 11:00 AM",
+        "contracts": 1,
+        "cost": 0.84,
+        "pnl": -0.84,
+        "roi": -100.0,
+        "settled": "03-22 15:02",
+        "session": 14,
+        "legs": [
+          {
+            "ticker": "KXBTC-26MAR2211-B68650",
+            "side": "YES",
+            "entry_cents": 84,
+            "contracts": 1,
+            "result": "LOST",
+            "pnl": -0.84
+          }
+        ]
+      },
       {
         "result": "WON",
         "type": "Last-Second",
