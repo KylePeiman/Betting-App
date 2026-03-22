@@ -245,7 +245,7 @@ def simulate_list(status: str | None, limit: int):
               help="Seconds before close to start monitoring for last-second entries.")
 @click.option("--ls-min-yes", default=70, type=int, show_default=True,
               help="Minimum YES ask in cents for last-second entries.")
-@click.option("--ls-max-yes", default=99, type=int, show_default=True,
+@click.option("--ls-max-yes", default=92, type=int, show_default=True,
               help="Maximum YES ask in cents for last-second entries.")
 @click.option("--ls-edge-buffer", default=0.15, type=float, show_default=True,
               help="Fraction of bucket width spot must be from edges (0.15 = 15%).")
@@ -253,6 +253,12 @@ def simulate_list(status: str | None, limit: int):
               help="Minimum NO ask in cents for last-second NO entries.")
 @click.option("--ls-max-no", default=40, type=int, show_default=True,
               help="Maximum NO ask in cents for last-second NO entries.")
+@click.option("--ls-stability-window", default=15, type=int, show_default=True,
+              help="Seconds of price history required to confirm stability.")
+@click.option("--ls-stability-threshold", default=0.003, type=float, show_default=True,
+              help="Max allowed price movement fraction in stability window (0.003 = 0.3%).")
+@click.option("--ls-directional-margin", default=0.003, type=float, show_default=True,
+              help="Min pct spot must be above/below floor_strike for 15M directional entries.")
 def live_cmd(
     mode: str | None,
     bankroll: float,
@@ -272,6 +278,9 @@ def live_cmd(
     ls_edge_buffer: float,
     ls_min_no: int,
     ls_max_no: int,
+    ls_stability_window: int,
+    ls_stability_threshold: float,
+    ls_directional_margin: float,
 ):
     """Run the last-second sniper with full options.
 
@@ -323,6 +332,9 @@ def live_cmd(
             ls_edge_buffer_pct=ls_edge_buffer,
             ls_min_no_cents=ls_min_no,
             ls_max_no_cents=ls_max_no,
+            ls_stability_window_s=ls_stability_window,
+            ls_stability_threshold_pct=ls_stability_threshold,
+            ls_directional_margin_pct=ls_directional_margin,
             use_prediction=prediction,
         )
     except RuntimeError as exc:

@@ -32,9 +32,9 @@ from typing import Any
 # Defaults (all overridable via function params)
 # ---------------------------------------------------------------------------
 
-ENTRY_WINDOW_SECONDS: int = 75          # enter within this many seconds of close
+ENTRY_WINDOW_SECONDS: int = 300         # enter within this many seconds of close
 MIN_YES_CENTS: int = 70                 # minimum YES ask (market must find it likely)
-MAX_YES_CENTS: int = 99                 # maximum YES ask
+MAX_YES_CENTS: int = 92                 # maximum YES ask (95-99c excluded: edge too thin)
 MIN_NO_CENTS: int = 3                   # minimum NO ask for NO trades (avoid zero-edge)
 MAX_NO_CENTS: int = 40                  # maximum NO ask for NO trades (avoid high-risk)
 STABILITY_WINDOW_S: int = 15           # look-back window for stability check
@@ -331,6 +331,7 @@ def scan_last_second_opportunities(
     edge_buffer_pct: float = EDGE_BUFFER_PCT,
     stability_window_s: int = STABILITY_WINDOW_S,
     stability_threshold_pct: float = STABILITY_THRESHOLD_PCT,
+    directional_margin_pct: float = DIRECTIONAL_MARGIN_PCT,
 ) -> list[dict]:
     """
     Scan near_markets for last-second price convergence opportunities.
@@ -413,7 +414,7 @@ def scan_last_second_opportunities(
         for mkt in mkt_list:
             dir_result = find_directional_opportunity(
                 mkt, spot,
-                margin_pct=DIRECTIONAL_MARGIN_PCT,
+                margin_pct=directional_margin_pct,
                 min_yes_cents=min_yes_cents, max_yes_cents=max_yes_cents,
                 min_no_cents=min_no_cents, max_no_cents=max_no_cents,
             )

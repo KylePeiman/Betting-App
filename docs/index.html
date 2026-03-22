@@ -164,13 +164,14 @@
 
   <!-- sessions -->
   <div id="dash-sessions" class="hidden">
-    <div class="card-title">Sessions</div>
-    <div class="sub-tabs" id="sess-tabs">
-      <button class="sub-tab active" data-group="sess" data-which="sim">Simulated</button>
-      <button class="sub-tab" data-group="sess" data-which="live">Live</button>
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
+      <div class="card-title" style="margin:0">Sessions</div>
+      <div class="sub-tabs" style="margin:0;border-bottom:none">
+        <button class="sub-tab mode-tab active" data-mode="live">Live</button>
+        <button class="sub-tab mode-tab" data-mode="sim">Simulated</button>
+      </div>
     </div>
-    <div id="sess-sim" class="sub-panel active"></div>
-    <div id="sess-live" class="sub-panel"></div>
+    <div id="sess-all"></div>
     <div class="divider"></div>
   </div>
 
@@ -178,24 +179,14 @@
   <div id="dash-open" class="hidden">
     <div class="card-title">Open Positions</div>
     <p class="caption">Positions from active (running) sessions only.</p>
-    <div class="sub-tabs" id="open-tabs">
-      <button class="sub-tab active" data-group="open" data-which="sim">Simulated</button>
-      <button class="sub-tab" data-group="open" data-which="live">Live</button>
-    </div>
-    <div id="open-sim" class="sub-panel active"></div>
-    <div id="open-live" class="sub-panel"></div>
+    <div id="open-all"></div>
     <div class="divider"></div>
   </div>
 
   <!-- trade history -->
   <div id="dash-history" class="hidden">
     <div class="card-title">Trade History</div>
-    <div class="sub-tabs" id="hist-tabs">
-      <button class="sub-tab active" data-group="hist" data-which="sim">Simulated</button>
-      <button class="sub-tab" data-group="hist" data-which="live">Live</button>
-    </div>
-    <div id="hist-sim" class="sub-panel active"></div>
-    <div id="hist-live" class="sub-panel"></div>
+    <div id="hist-all"></div>
   </div>
 
 </div><!-- /panel-kalshi -->
@@ -220,22 +211,6 @@ document.querySelectorAll('.top-tab').forEach(btn => {
   });
 });
 
-// Sub-tab switching (delegated)
-document.addEventListener('click', e => {
-  const btn = e.target.closest('.sub-tab');
-  if (!btn || !btn.dataset.group) return;
-  const group = btn.dataset.group;
-  const which = btn.dataset.which;
-  // deactivate siblings
-  btn.closest('.sub-tabs').querySelectorAll('.sub-tab').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  // show correct panel
-  const panels = { sess: ['sess-sim','sess-live'], open: ['open-sim','open-live'], hist: ['hist-sim','hist-live'] }[group];
-  panels.forEach(id => {
-    const el = document.getElementById(id);
-    el.classList.toggle('active', id.endsWith(which));
-  });
-});
 
 // ══════════════════════════════════════════════════════════════
 // CRYPTO TICKER — Kraken WebSocket v2
@@ -364,11 +339,30 @@ function connectKraken() {
 
 const GIST_URL = 'https://gist.githubusercontent.com/KylePeiman/647660296d9b6f59377b879d655907e6/raw/data.json';
 
+let dashData = null;
+let viewMode = 'live';
+
+function setViewMode(mode) {
+  viewMode = mode;
+  document.querySelectorAll('.mode-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+  if (!dashData) return;
+  renderSessionsSection(dashData.sessions || {});
+  renderOpenSection(dashData.open_positions || {});
+  renderHistorySection(dashData.trade_history || {});
+}
+
+document.querySelectorAll('.mode-tab').forEach(btn => {
+  btn.addEventListener('click', () => setViewMode(btn.dataset.mode));
+});
+
 async function loadDashboardData() {
   try {
     const resp = await fetch(GIST_URL + '?_=' + Date.now());
     if (!resp.ok) throw new Error('not found');
     const data = await resp.json();
+    dashData = data;
     renderDashboard(data);
   } catch (_) {
     document.getElementById('dash-banner').classList.remove('hidden');
@@ -402,60 +396,56 @@ function renderDashboard(data) {
 
 // ── sessions ──────────────────────────────────────────────────
 function renderSessionsSection(sessions) {
-  renderSessionsPane(sessions.sim || [], 'sess-sim', 'simulated');
-  renderSessionsPane(sessions.live || [], 'sess-live', 'live');
-}
+  const sim  = (sessions.sim  || []).map(r => ({...r, _type:'sim'}));
+  const live = (sessions.live || []).map(r => ({...r, _type:'live'}));
+  const all  = viewMode === 'live' ? live : sim;
+  const el   = document.getElementById('sess-all');
+  if (!all.length) { el.innerHTML = noData(`No ${viewMode} sessions yet.`); return; }
 
-function renderSessionsPane(rows, containerId, label) {
-  const el = document.getElementById(containerId);
-  if (!rows.length) {
-    el.innerHTML = noData('No ' + label + ' sessions.');
-    return;
-  }
-
-  // pick highlighted session: running first, else most recent
-  const running = rows.filter(r => r.status === 'running');
-  const target = running.length ? running[0] : rows[0];
-
+  const running = all.filter(r => r.status === 'running');
+  const target = running.length ? running[0] : all[0];
   const pnlClass = target.pnl >= 0 ? 'pos' : 'neg';
   const gainSign = target.gain_pct >= 0 ? '+' : '';
+  const totalPnl = all.reduce((s, r) => s + r.pnl, 0);
+  const totalPnlCls = totalPnl >= 0 ? 'pos' : 'neg';
 
   el.innerHTML = `
     <div class="metrics">
       <div class="metric">
-        <div class="label">Session</div>
-        <div class="value">#${target.id}</div>
+        <div class="label">Active Session</div>
+        <div class="value">#${target.id} ${pillType(target._type)}</div>
         <div class="sub">${pillStatus(target.status)}</div>
-      </div>
-      <div class="metric">
-        <div class="label">Strategy</div>
-        <div class="value" style="font-size:1rem">${esc(target.strategy)}</div>
       </div>
       <div class="metric">
         <div class="label">Balance</div>
         <div class="value">$${target.balance.toFixed(4)}</div>
       </div>
       <div class="metric">
-        <div class="label">P&amp;L</div>
+        <div class="label">Session P&amp;L</div>
         <div class="value ${pnlClass}">${target.pnl >= 0 ? '+' : ''}$${target.pnl.toFixed(4)}</div>
         <div class="sub ${pnlClass}">${gainSign}${target.gain_pct.toFixed(2)}%</div>
+      </div>
+      <div class="metric">
+        <div class="label">All-time P&amp;L</div>
+        <div class="value ${totalPnlCls}">${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(4)}</div>
       </div>
       <div class="metric">
         <div class="label">W / L / V</div>
         <div class="value" style="font-size:1rem">${target.w} / ${target.l} / ${target.v}</div>
       </div>
     </div>
-    <div class="tbl-wrap">${sessionsTable(rows)}</div>`;
+    <div class="tbl-wrap">${sessionsTable(all)}</div>`;
 }
 
 function sessionsTable(rows) {
-  const hdr = `<tr>${['ID','Started','Status','Strategy','Balance ($)','P&amp;L ($)','Gain %','Trades','W','L','V']
+  const hdr = `<tr>${['ID','Type','Started','Status','Strategy','Balance ($)','P&amp;L ($)','Gain %','Trades','W','L','V']
     .map(h => `<th>${h}</th>`).join('')}</tr>`;
   const body = rows.map(r => {
     const pnlCls = r.pnl >= 0 ? 'pos' : 'neg';
     const gainSign = r.gain_pct >= 0 ? '+' : '';
     return `<tr>
       <td>${r.id}</td>
+      <td>${pillType(r._type)}</td>
       <td>${esc(r.started)}</td>
       <td>${pillStatus(r.status)}</td>
       <td>${esc(r.strategy)}</td>
@@ -471,27 +461,23 @@ function sessionsTable(rows) {
 
 // ── open positions ────────────────────────────────────────────
 function renderOpenSection(open) {
-  renderOpenPane(open.sim || [], 'open-sim');
-  renderOpenPane(open.live || [], 'open-live');
-}
-
-function renderOpenPane(rows, containerId) {
-  const el = document.getElementById(containerId);
-  if (!rows.length) {
-    el.innerHTML = noData('No open positions.');
-    return;
-  }
-  const totalCost = rows.reduce((s, r) => s + r.cost, 0);
+  const sim  = (open.sim  || []).map(r => ({...r, _type:'sim'}));
+  const live = (open.live || []).map(r => ({...r, _type:'live'}));
+  const all  = viewMode === 'live' ? live : sim;
+  const el   = document.getElementById('open-all');
+  if (!all.length) { el.innerHTML = noData(`No open ${viewMode} positions.`); return; }
+  const totalCost = all.reduce((s, r) => s + r.cost, 0);
   el.innerHTML = `
-    <p class="caption">${rows.length} position${rows.length !== 1 ? 's' : ''} · $${totalCost.toFixed(4)} locked</p>
-    <div class="tbl-wrap">${openTable(rows)}</div>`;
+    <p class="caption">${all.length} position${all.length !== 1 ? 's' : ''} · $${totalCost.toFixed(4)} locked</p>
+    <div class="tbl-wrap">${openTable(all)}</div>`;
 }
 
 function openTable(rows) {
-  const hdr = `<tr>${['Session','Type','Event','Contracts','Cost ($)','Entered']
+  const hdr = `<tr>${['Session','Type','Strategy','Event','Contracts','Cost ($)','Entered']
     .map(h => `<th>${h}</th>`).join('')}</tr>`;
   const body = rows.map(r => `<tr>
     <td>${r.session}</td>
+    <td>${pillType(r._type)}</td>
     <td>${esc(r.type)}</td>
     <td>${esc(r.event)}</td>
     <td>${r.contracts}</td>
@@ -503,8 +489,10 @@ function openTable(rows) {
 
 // ── trade history ─────────────────────────────────────────────
 function renderHistorySection(history) {
-  renderHistoryPane(history.sim || [], 'hist-sim');
-  renderHistoryPane(history.live || [], 'hist-live');
+  const sim  = (history.sim  || []).map(r => ({...r, _type:'sim'}));
+  const live = (history.live || []).map(r => ({...r, _type:'live'}));
+  const all  = viewMode === 'live' ? live : sim;
+  renderHistoryPane(all, 'hist-all');
 }
 
 function renderHistoryPane(arbs, containerId) {
@@ -580,7 +568,7 @@ function renderHistoryPane(arbs, containerId) {
 }
 
 function historyTable(arbs, baseId) {
-  const hdr = `<tr><th></th>${['Result','Type','Event','Contracts','Cost ($)','P&amp;L ($)','ROI %','Settled']
+  const hdr = `<tr><th></th>${['Result','Mode','Type','Event','Contracts','Cost ($)','P&amp;L ($)','ROI %','Settled']
     .map(h => `<th>${h}</th>`).join('')}</tr>`;
 
   const body = arbs.map((a, i) => {
@@ -606,6 +594,7 @@ function historyTable(arbs, baseId) {
       <tr class="trade-row" data-detail="${rid}">
         <td><span class="expand-icon">▶</span></td>
         <td class="${resultCls}">${pillResult(a.result)}</td>
+        <td>${pillType(a._type)}</td>
         <td>${esc(a.type)}</td>
         <td title="${esc(a.event)}">${esc(a.event.length>45 ? a.event.slice(0,45)+'…' : a.event)}</td>
         <td>${a.contracts}</td>
@@ -615,7 +604,7 @@ function historyTable(arbs, baseId) {
         <td>${esc(a.settled)}</td>
       </tr>
       <tr class="trade-detail" id="${rid}" style="display:none">
-        <td colspan="9">${legHtml}</td>
+        <td colspan="10">${legHtml}</td>
       </tr>`;
   }).join('');
 
@@ -747,6 +736,11 @@ function pillResult(r) {
   const map = { WON: 'pill-won', LOST: 'pill-lost', VOIDED: 'pill-voided' };
   return `<span class="pill ${map[r]||''}">${esc(r)}</span>`;
 }
+function pillType(t) {
+  return t === 'live'
+    ? `<span class="pill pill-running">Live</span>`
+    : `<span class="pill pill-stopped">Sim</span>`;
+}
 
 // ══════════════════════════════════════════════════════════════
 // INIT
@@ -755,6 +749,7 @@ initTickerGrid();
 connectKraken();
 dashLoaded = true;
 loadDashboardData();
+setInterval(loadDashboardData, 30000);
 </script>
 </body>
 </html>

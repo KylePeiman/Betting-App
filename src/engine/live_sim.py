@@ -154,13 +154,14 @@ def _settle_open_positions(db: Session, session_id: int, fetcher, log_file) -> i
 # Live order placement
 # ---------------------------------------------------------------------------
 
-def _place_live_legs(fetcher, legs: list[dict], count: int, log_file) -> list[str] | None:
+def _place_live_legs(fetcher, legs: list[dict], count: int, log_file) -> tuple[list[str], int] | None:
     """
-    Place limit buy orders for each leg. Returns list of order_ids if all legs
-    filled, or None if any leg failed (already-placed legs are cancelled).
+    Place IOC limit buy orders for each leg.
+    Returns (order_ids, total_filled) if at least 1 contract filled, or None if nothing filled.
+    Partial fills are accepted — IOC cancels any unfilled remainder automatically.
     legs: [{"ticker": str, "side": str, "price_cents": int}]
     """
-    placed: list[tuple[str, str]] = []  # (order_id, ticker)
+    placed: list[tuple[str, str, int]] = []  # (order_id, ticker, filled)
 
     for leg in legs:
         try:
@@ -172,45 +173,31 @@ def _place_live_legs(fetcher, legs: list[dict], count: int, log_file) -> list[st
             )
         except Exception as exc:
             _log(log_file, f"  [LIVE] order FAILED {leg['ticker']} ({leg['side']}): {exc}")
-            for oid, tkr in placed:
-                try:
-                    fetcher.cancel_order(oid)
-                    _log(log_file, f"  [LIVE] cancelled {oid} ({tkr})")
-                except Exception:
-                    pass
-            return None
+            return None if not placed else ([oid for oid, _, _ in placed], sum(f for _, _, f in placed))
 
         order_id = order.get("order_id") or order.get("id", "")
         status = order.get("status", "")
         filled = order.get("fill_count") or order.get("filled_count", 0)
 
-        if status not in ("filled", "executed") and filled < count:
-            time.sleep(2)
-            try:
-                order = fetcher.get_order(order_id)
-                status = order.get("status", "")
-                filled = order.get("fill_count") or order.get("filled_count", 0)
-            except Exception:
-                pass
+        # Kalshi sometimes returns fill_count: None on executed orders — trust status
+        if status in ("executed", "filled") and not filled:
+            filled = count
 
-        if status in ("filled", "executed") or filled >= count:
-            _log(log_file, f"  [LIVE] filled  {leg['ticker']} ({leg['side']}) x{count} @ {leg['price_cents']}¢  order={order_id}")
-            placed.append((order_id, leg["ticker"]))
+        if filled > 0:
+            _log(log_file,
+                f"  [LIVE] filled  {leg['ticker']} ({leg['side']}) x{filled}/{count}"
+                f" @ {leg['price_cents']}¢  order={order_id}"
+            )
+            placed.append((order_id, leg["ticker"], filled))
         else:
-            _log(log_file, f"  [LIVE] NOT filled {leg['ticker']} status={status} filled={filled}/{count} — cancelling all")
-            try:
-                fetcher.cancel_order(order_id)
-            except Exception:
-                pass
-            for oid, tkr in placed:
-                try:
-                    fetcher.cancel_order(oid)
-                    _log(log_file, f"  [LIVE] cancelled {oid} ({tkr})")
-                except Exception:
-                    pass
-            return None
+            _log(log_file,
+                f"  [LIVE] no fill {leg['ticker']} ({leg['side']}) x{count}"
+                f" @ {leg['price_cents']}¢  order={order_id}"
+            )
+            return None if not placed else ([oid for oid, _, _ in placed], sum(f for _, _, f in placed))
 
-    return [oid for oid, _ in placed]
+    total_filled = sum(f for _, _, f in placed)
+    return ([oid for oid, _, _ in placed], total_filled)
 
 
 # ---------------------------------------------------------------------------
@@ -246,11 +233,19 @@ def _enter_last_second_bet(
 
     order_ids = None
     if live and fetcher is not None:
-        leg_dicts = [{"ticker": ticker, "side": side, "price_cents": ask_cents}]
-        order_ids = _place_live_legs(fetcher, leg_dicts, contracts, log_file)
-        if order_ids is None:
-            _log(log_file, f"  [LIVE] last-second skipped (fill failed) {ticker} {side.upper()}")
+        # Place YES orders at 99¢ to sweep the full order book — any seller at
+        # any price ≤99¢ will fill. NO orders keep the scanned ask price.
+        order_price = 99 if side == "yes" else ask_cents
+        leg_dicts = [{"ticker": ticker, "side": side, "price_cents": order_price}]
+        result = _place_live_legs(fetcher, leg_dicts, contracts, log_file)
+        if result is None:
+            _log(log_file, f"  [LIVE] last-second skipped (no fill) {ticker} {side.upper()}")
             return
+        order_ids, filled = result
+        if filled < contracts:
+            _log(log_file, f"  [LIVE] partial fill {filled}/{contracts} contracts — recording actual fill")
+        contracts = filled
+        total_cost = ask_cents * contracts
 
     pos = SimPosition(
         session_id=sim.id, ticker=ticker, side=side,
@@ -330,6 +325,34 @@ def _enter_prediction_bet(db, sim, open_keys, opp, max_position_pct, log_file):
 
 
 # ---------------------------------------------------------------------------
+# Balance reconciliation
+# ---------------------------------------------------------------------------
+
+def _reconcile_balance(db, sim, fetcher, log_file) -> None:
+    """
+    Fetch the actual Kalshi balance and sync the DB bankroll to match.
+    Only called when no positions are open, so locked funds don't skew the diff.
+    Logs a warning if the discrepancy exceeds $0.05 (manual trades, untracked fills, etc).
+    """
+    try:
+        actual_cents = fetcher.get_balance()
+        db_cents = sim.current_bankroll_cents
+        diff = actual_cents - db_cents
+        if abs(diff) < 1:
+            return  # in sync, no action needed
+        warning = "  *** DISCREPANCY > $0.05 — possible manual trade or untracked fill ***" if abs(diff) > 5 else ""
+        _log(log_file,
+            f"  [RECONCILE] Kalshi=${actual_cents/100:.2f}  DB=${db_cents/100:.2f}"
+            f"  diff={diff/100:+.2f}  → syncing"
+            + (f"\n{warning}" if warning else "")
+        )
+        sim.current_bankroll_cents = actual_cents
+        db.commit()
+    except Exception as exc:
+        _log(log_file, f"  [RECONCILE] failed: {exc}")
+
+
+# ---------------------------------------------------------------------------
 # Main loop
 # ---------------------------------------------------------------------------
 
@@ -370,14 +393,15 @@ def run_live_simulation(
     resume_session_id: int | None = None,
     use_live_orders: bool = False,
     use_last_second: bool = True,
-    ls_entry_window: int = 120,
+    ls_entry_window: int = 300,  # default matches last_second.ENTRY_WINDOW_SECONDS
     ls_min_yes_cents: int = 70,
-    ls_max_yes_cents: int = 99,
+    ls_max_yes_cents: int = 92,
     ls_edge_buffer_pct: float = 0.15,
     ls_stability_window_s: int = 15,
     ls_stability_threshold_pct: float = 0.003,
     ls_min_no_cents: int = 3,
     ls_max_no_cents: int = 40,
+    ls_directional_margin_pct: float = 0.003,
     use_prediction: bool = False,
     use_streaming: bool = True,
 ) -> None:
@@ -606,12 +630,11 @@ def run_live_simulation(
                             obs = tracker.observation_count() if tracker else 0
                             decision = f"REJECT: price unstable (obs={obs} in {ls_stability_window_s}s)"
                         elif is_directional:
-                            from src.engine.last_second import DIRECTIONAL_MARGIN_PCT
                             pct = (spot - float(floor_s)) / float(floor_s)
                             no_ask = mkt.selections[0].metadata.get("no_ask") if mkt.selections else None
-                            if abs(pct) < DIRECTIONAL_MARGIN_PCT:
-                                decision = f"REJECT: too close to floor (pct={pct:.4f}, need ±{DIRECTIONAL_MARGIN_PCT})"
-                            elif pct >= DIRECTIONAL_MARGIN_PCT:
+                            if abs(pct) < ls_directional_margin_pct:
+                                decision = f"REJECT: too close to floor (pct={pct:.4f}, need ±{ls_directional_margin_pct})"
+                            elif pct >= ls_directional_margin_pct:
                                 if yes_ask is None:
                                     decision = "REJECT: yes_ask is None"
                                 elif yes_ask < ls_min_yes_cents:
@@ -622,7 +645,7 @@ def run_live_simulation(
                                     decision = "SKIP: already entered this cycle"
                                 else:
                                     decision = f">>> ENTER directional YES yes_ask={yes_ask}¢ spot={spot} pct={pct:.4f}"
-                            else:  # pct <= -DIRECTIONAL_MARGIN_PCT
+                            else:  # pct <= -ls_directional_margin_pct
                                 if no_ask is None:
                                     decision = "REJECT: no_ask is None"
                                 elif no_ask < ls_min_no_cents:
@@ -674,7 +697,60 @@ def run_live_simulation(
                         edge_buffer_pct=ls_edge_buffer_pct,
                         stability_window_s=ls_stability_window_s,
                         stability_threshold_pct=ls_stability_threshold_pct,
+                        directional_margin_pct=ls_directional_margin_pct,
                     )
+
+                    # Log rejection reasons when markets are in-window but nothing qualifies
+                    if not ls_entries:
+                        in_window = [
+                            m for m in scan_markets
+                            if m.starts_at and 0 < (m.starts_at - now).total_seconds() <= ls_entry_window
+                        ]
+                        if in_window:
+                            reject_lines = []
+                            seen_assets: set[str] = set()
+                            for mkt in in_window:
+                                pair = kraken_pair_for_market(mkt)
+                                if pair in seen_assets:
+                                    continue
+                                seen_assets.add(pair or mkt.id)
+                                tracker = _ls_trackers.get(pair) if pair else None
+                                spot = tracker.latest() if tracker else None
+                                stable = tracker.is_stable(ls_stability_window_s, ls_stability_threshold_pct) if tracker else False
+                                floor_s = mkt.metadata.get("floor_strike")
+                                cap_s = mkt.metadata.get("cap_strike")
+                                secs = (mkt.starts_at - now).total_seconds()
+                                if spot is None:
+                                    reason = "no spot price"
+                                elif not stable:
+                                    obs = tracker.observation_count() if tracker else 0
+                                    reason = f"unstable (obs={obs})"
+                                elif floor_s is not None and cap_s is not None:
+                                    try:
+                                        bw = float(cap_s) - float(floor_s)
+                                        buf = ls_edge_buffer_pct * bw
+                                        mf = spot - float(floor_s)
+                                        mc = float(cap_s) - spot
+                                        if not (float(floor_s) <= spot < float(cap_s)):
+                                            reason = f"spot={spot} outside bucket [{floor_s},{cap_s})"
+                                        elif mf < buf:
+                                            reason = f"edge-fail floor: {mf:.4f} < {buf:.4f} (need {buf - mf:.4f} more)"
+                                        elif mc < buf:
+                                            reason = f"edge-fail cap: {mc:.4f} < {buf:.4f} (need {buf - mc:.4f} more)"
+                                        else:
+                                            yes_ask = mkt.selections[0].metadata.get("yes_ask") if mkt.selections else None
+                                            reason = f"ask={yes_ask}¢ out of range [{ls_min_yes_cents},{ls_max_yes_cents}]"
+                                    except (TypeError, ValueError):
+                                        reason = "parse error"
+                                else:
+                                    reason = "directional: no edge"
+                                reject_lines.append(
+                                    f"    {pair or mkt.id}  spot={spot}  {secs:.0f}s  → {reason}"
+                                )
+                            _log(log_file,
+                                f"  [LS] {len(in_window)} in-window market(s), no entries:\n"
+                                + "\n".join(reject_lines)
+                            )
 
                     for entry in ls_entries:
                         ticker = entry["market"].id
@@ -703,8 +779,18 @@ def run_live_simulation(
                         ask_cents = entry.get("ask_cents") or (
                             entry.get("yes_ask_cents") if side == "yes" else entry.get("no_ask_cents")
                         )
-                        contracts = max(1, int(sim.current_bankroll_cents * 0.05 // ask_cents))
-                        contracts = min(contracts, 5)
+                        if ask_cents >= 95:
+                            alloc = sim.current_bankroll_cents * 0.375
+                        elif ask_cents >= 90:
+                            alloc = sim.current_bankroll_cents * 0.25
+                        elif ask_cents >= 85:
+                            alloc = sim.current_bankroll_cents * 0.125
+                        else:
+                            alloc = min(sim.current_bankroll_cents * 0.025, ask_cents * 5)
+                        contracts = max(1, int(alloc // ask_cents))
+                        # Cap high-ask trades at 1 contract to limit tail risk
+                        if ask_cents >= 90:
+                            contracts = min(contracts, 1)
                         ls_open_keys: set[str] = {
                             f"{p.ticker}_{p.side}" for p in db.query(SimPosition).filter(
                                 SimPosition.session_id == session_id,
@@ -736,6 +822,12 @@ def run_live_simulation(
                     f"  locked=${locked_now/100:.4f}"
                     f"  total=${(sim.current_bankroll_cents + locked_now)/100:.4f}"
                 )
+
+                # Reconcile DB bankroll against actual Kalshi balance (live only,
+                # and only when no positions are locked so comparison is clean)
+                if use_live_orders and locked_now == 0:
+                    _reconcile_balance(db, sim, fetcher, log_file)
+                    db.refresh(sim)
 
                 # Prune entry keys for markets that have closed (key = "ticker_side")
                 open_ticker_set = {
@@ -891,3 +983,11 @@ def run_live_simulation(
         _log(log_file, f"  W / L / V        : {sim.won} / {sim.lost} / {sim.voided}")
         _log(log_file, f"  Log file         : {log_path}")
         _log(log_file, "=" * 65)
+
+        # Push fresh snapshot to Gist so the dashboard clears stopped sessions
+        try:
+            from scripts.export_dashboard_data import main as _export_main
+            _export_main()
+            _log(log_file, "  [GIST] Dashboard data pushed.", also_print=False)
+        except Exception as _exc:
+            _log(log_file, f"  [GIST] Push failed: {_exc}", also_print=False)
