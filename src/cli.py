@@ -768,7 +768,7 @@ def weather_scan(min_edge):
     """One-shot scan: print weather market opportunities with NWS edge."""
     from src.fetchers.kalshi import KalshiFetcher
     from src.weather.scanner import scan_weather_markets
-    from config import settings
+    from config.settings import settings
 
     edge = min_edge if min_edge is not None else settings.WEATHER_MIN_EDGE
     fetcher = KalshiFetcher()
@@ -816,7 +816,7 @@ def weather_scan(min_edge):
 def weather_run(mode, bankroll, interval, min_edge, resume):
     """Run the weather trading strategy (continuous loop)."""
     from src.weather.strategy import run_weather_strategy
-    from config import settings
+    from config.settings import settings
 
     live = mode == "live"
     scan_interval = (

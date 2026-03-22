@@ -1,8 +1,21 @@
 {
-  "generated_at": "2026-03-22T15:15:05Z",
+  "generated_at": "2026-03-22T16:24:43Z",
   "balance_dollars": 6.12,
   "sessions": {
     "sim": [
+      {
+        "id": 15,
+        "started": "2026-03-22 16:20",
+        "status": "running",
+        "strategy": "\u2014",
+        "balance": 10.0,
+        "pnl": 0.0,
+        "gain_pct": 0.0,
+        "trades": 0,
+        "w": 0,
+        "l": 0,
+        "v": 0
+      },
       {
         "id": 8,
         "started": "2026-03-18 01:33",
