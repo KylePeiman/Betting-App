@@ -13,6 +13,7 @@ import datetime
 import unittest
 from unittest.mock import MagicMock, patch
 
+from src.fetchers.base import Market, Selection
 from src.weather.market_parser import CITY_COORDS, parse_weather_market
 from src.weather import noaa
 from src.weather.noaa import get_forecast
@@ -177,6 +178,32 @@ class TestParseWeatherMarket(unittest.TestCase):
         )
         result = parse_weather_market(market)
         self.assertIsNone(result)
+
+    def test_real_market_with_event_name(self) -> None:
+        """A real Market dataclass (event_name, no .name) is parsed."""
+        market = Market(
+            id="WEATHER-NYC-HIGHTEMP-2026-03-22",
+            category="weather",
+            event_name=(
+                "Will the high temperature in New York City "
+                "exceed 75\u00b0F on March 22?"
+            ),
+            starts_at=None,
+            selections=[
+                Selection(name="Yes", odds=2.0),
+                Selection(name="No", odds=2.0),
+            ],
+            source="kalshi",
+        )
+        result = parse_weather_market(market)
+
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertEqual(result["city"], "New York")
+        self.assertEqual(result["metric"], "high_temp")
+        self.assertEqual(result["threshold"], 75.0)
+        self.assertEqual(result["direction"], "above")
+        self.assertEqual(result["date"], datetime.date(2026, 3, 22))
 
 
 # ---------------------------------------------------------------------------

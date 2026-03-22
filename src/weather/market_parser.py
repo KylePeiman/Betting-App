@@ -268,7 +268,9 @@ def parse_weather_market(market: Any) -> Optional[Dict[str, Any]]:
         ``threshold``, and ``direction``; or ``None`` if any required
         field cannot be determined.
     """
-    title: str = getattr(market, "name", "")
+    title: str = getattr(market, "event_name", "") or getattr(
+        market, "name", ""
+    )
     if not title:
         return None
 

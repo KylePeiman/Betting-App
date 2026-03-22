@@ -785,10 +785,13 @@ def weather_scan(min_edge):
     )
     click.echo("-" * 85)
     for o in opps:
+        market_name = getattr(o["market"], "event_name", "") or getattr(
+            o["market"], "name", ""
+        )
         name = (
-            o["market"].name[:52] + "..."
-            if len(o["market"].name) > 55
-            else o["market"].name
+            market_name[:52] + "..."
+            if len(market_name) > 55
+            else market_name
         )
         click.echo(
             f"{name:<55} {o['nws_prob']*100:>5.1f}%"
