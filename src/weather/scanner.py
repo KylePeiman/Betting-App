@@ -54,7 +54,8 @@ def get_nws_probability(
         avg_precip = sum(p["precip_pct"] for p in day_periods) / len(
             day_periods
         )
-        return avg_precip / 100.0
+        prob = avg_precip / 100.0
+        return prob if direction == "above" else 1.0 - prob
 
     if metric == "high_temp":
         observed = max(p["temp_f"] for p in day_periods)
@@ -195,6 +196,9 @@ def scan_weather_markets(
             else:
                 side = "no"
                 ask_cents = no_ask
+
+            if ask_cents == 0:
+                continue
 
             opportunities.append(
                 {

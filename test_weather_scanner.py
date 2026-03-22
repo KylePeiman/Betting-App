@@ -111,6 +111,24 @@ class TestGetNwsProbability:
         result = get_nws_probability(parsed, forecast)
         assert result == pytest.approx(0.50)
 
+    def test_precip_below_direction(self) -> None:
+        """KPE-47: direction='below' should invert the probability."""
+        parsed = {
+            "date": datetime.date(2026, 3, 22),
+            "metric": "precip",
+            "threshold": 0.5,
+            "direction": "below",
+        }
+        # 4 hours, precip_pct = [60, 70, 80, 70] → avg = 70 → 0.70
+        # direction="below" → 1.0 - 0.70 = 0.30
+        forecast = _make_forecast_periods(
+            datetime.date(2026, 3, 22),
+            precips=[60, 70, 80, 70],
+            hours=4,
+        )
+        result = get_nws_probability(parsed, forecast)
+        assert result == pytest.approx(0.30)
+
     def test_precip_zero(self) -> None:
         parsed = {
             "date": datetime.date(2026, 3, 22),
@@ -619,5 +637,38 @@ class TestScanWeatherMarkets:
         fetcher.get_markets.return_value = [market]
 
         results = scan_weather_markets(fetcher, min_edge=0.0)
+
+        assert len(results) == 0
+
+    @patch("src.weather.scanner.get_forecast")
+    @patch("src.weather.scanner.parse_weather_market")
+    def test_skips_no_side_with_zero_no_ask(
+        self,
+        mock_parse: MagicMock,
+        mock_forecast: MagicMock,
+    ) -> None:
+        """KPE-46: no_ask=0 should not produce a valid opportunity."""
+        today = datetime.date.today()
+        # nws_prob will be < kalshi_prob → side="no", but no_ask=0
+        market = self._make_today_market(yes_ask=80, no_ask=0)
+
+        mock_parse.return_value = {
+            "city": "Chicago",
+            "lat": 41.8781,
+            "lon": -87.6298,
+            "date": today,
+            "metric": "high_temp",
+            "threshold": 75.0,
+            "direction": "above",
+        }
+        # max temp = 60 → prob 0.15, kalshi_prob = 0.80 → side="no"
+        mock_forecast.return_value = _make_forecast_periods(
+            today, temps=[50.0, 55.0, 60.0], hours=3
+        )
+
+        fetcher = MagicMock()
+        fetcher.get_markets.return_value = [market]
+
+        results = scan_weather_markets(fetcher, min_edge=0.05)
 
         assert len(results) == 0
