@@ -72,6 +72,7 @@ def _make_scanner_market(
     market = MagicMock()
     market.id = market_id
     market.name = name
+    market.category = "weather"
     market.selections = [selection]
     market.starts_at = starts_at
     return market

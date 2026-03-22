@@ -137,6 +137,13 @@ def scan_weather_markets(
         print(f"[weather] failed to fetch markets: {exc}")
         return opportunities
 
+    # Post-filter to weather/climate category only.
+    _WEATHER_CATEGORIES = {"weather", "climate and weather", "climate"}
+    markets = [
+        m for m in markets
+        if m.category.lower() in _WEATHER_CATEGORIES
+    ]
+
     for market in markets:
         try:
             # Skip markets with no selections or zero yes_ask.
@@ -154,16 +161,9 @@ def scan_weather_markets(
             # Only include markets closing today.
             close_time = market.starts_at
             if close_time is None:
-                print(
-                    f"[weather] skip {market.id}: no close_time"
-                )
                 continue
 
             if close_time.date() != today:
-                print(
-                    f"[weather] skip {market.id}: "
-                    f"closes {close_time.date()}, not today"
-                )
                 continue
 
             # Parse market title for weather fields.
@@ -175,10 +175,6 @@ def scan_weather_markets(
             forecast = get_forecast(parsed["lat"], parsed["lon"])
             nws_prob = get_nws_probability(parsed, forecast)
             if nws_prob is None:
-                print(
-                    f"[weather] skip {market.id}: "
-                    "no NWS probability available"
-                )
                 continue
 
             kalshi_prob = yes_ask / 100.0
@@ -211,19 +207,7 @@ def scan_weather_markets(
                 }
             )
 
-            print(
-                f"[weather] EDGE {market.id}: "
-                f"side={side} ask={ask_cents}c "
-                f"kalshi={kalshi_prob:.2f} nws={nws_prob:.2f} "
-                f"edge={edge:.2f}"
-            )
-
         except Exception as exc:
             print(f"[weather] error processing {market.id}: {exc}")
             continue
-
-    print(
-        f"[weather] scan complete: {len(opportunities)} "
-        f"opportunities found"
-    )
     return opportunities
