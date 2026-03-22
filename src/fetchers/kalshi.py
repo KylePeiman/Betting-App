@@ -162,15 +162,24 @@ class KalshiFetcher(BaseFetcher):
     # Public interface
     # ------------------------------------------------------------------
 
-    def get_markets(self, **kwargs) -> list[Market]:
+    def get_markets(self, categories: list[str] | None = None, **kwargs) -> list[Market]:
         """
         Fetch open events from Kalshi with nested markets.
 
         Uses GET /events?status=open&with_nested_markets=true and pages
         through all results (cursor-based pagination).
+
+        Args:
+            categories: Optional list of category names to filter by
+                (e.g. ["Climate and Weather"]). Filters per page to
+                avoid fetching the full catalog when only one category
+                is needed. Case-insensitive.
         """
         markets: list[Market] = []
         cursor: str | None = None
+
+        # Build effective category filter: caller arg takes priority over global setting.
+        active_filter: list[str] = [c.lower() for c in (categories or self.category_filter or [])]
 
         while True:
             params: dict[str, Any] = {
@@ -180,10 +189,6 @@ class KalshiFetcher(BaseFetcher):
             }
             if cursor:
                 params["cursor"] = cursor
-            if self.category_filter:
-                # Kalshi series_ticker prefix acts as a loose category filter;
-                # we post-filter by category label below instead.
-                pass
 
             try:
                 data = self._get("/events", params)
@@ -199,6 +204,15 @@ class KalshiFetcher(BaseFetcher):
                 break
 
             events: list[dict] = data.get("events") or []
+
+            # Apply category filter per page to avoid accumulating unwanted markets.
+            if active_filter:
+                events = [
+                    e for e in events
+                    if e.get("category", "").lower() in active_filter
+                    or self._map_category(e.get("category", "")).lower() in active_filter
+                ]
+
             for event in events:
                 parsed = self._parse_event(event)
                 markets.extend(parsed)

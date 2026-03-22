@@ -131,18 +131,13 @@ def scan_weather_markets(
     today = datetime.date.today()
     opportunities: list[dict[str, Any]] = []
 
+    _WEATHER_CATEGORIES = ["Climate and Weather"]
+
     try:
-        markets = fetcher.get_markets()
+        markets = fetcher.get_markets(categories=_WEATHER_CATEGORIES)
     except Exception as exc:
         print(f"[weather] failed to fetch markets: {exc}")
         return opportunities
-
-    # Post-filter to weather/climate category only.
-    _WEATHER_CATEGORIES = {"weather", "climate and weather", "climate"}
-    markets = [
-        m for m in markets
-        if m.category.lower() in _WEATHER_CATEGORIES
-    ]
 
     for market in markets:
         try:
