@@ -153,6 +153,7 @@ class SimSession(Base):
     won = Column(Integer, default=0)
     lost = Column(Integer, default=0)
     voided = Column(Integer, default=0)
+    opening_adjustment_cents = Column(Float, default=0.0, nullable=True)  # gap vs prev session end
 
     positions = relationship("SimPosition", back_populates="session")
 

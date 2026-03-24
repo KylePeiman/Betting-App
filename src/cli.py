@@ -245,7 +245,7 @@ def simulate_list(status: str | None, limit: int):
               help="Seconds before close to start monitoring for last-second entries.")
 @click.option("--ls-min-yes", default=70, type=int, show_default=True,
               help="Minimum YES ask in cents for last-second entries.")
-@click.option("--ls-max-yes", default=92, type=int, show_default=True,
+@click.option("--ls-max-yes", default=98, type=int, show_default=True,
               help="Maximum YES ask in cents for last-second entries.")
 @click.option("--ls-edge-buffer", default=0.15, type=float, show_default=True,
               help="Fraction of bucket width spot must be from edges (0.15 = 15%).")
@@ -355,15 +355,29 @@ def simulate_sessions(limit: int):
         click.echo("No sessions found.")
         return
 
-    click.echo(f"{'ID':>4}  {'Started':>19}  {'Status':>8}  {'Initial$':>9}  {'Liquid$':>8}  {'Trades':>6}  {'W/L/V':>9}  Log")
-    click.echo("-" * 110)
+    click.echo(f"{'ID':>4}  {'Started':>19}  {'Status':>8}  {'Initial$':>9}  {'Liquid$':>8}  {'P&L$':>7}  {'Gap$':>6}  {'Trades':>6}  {'W/L/V':>9}")
+    click.echo("-" * 100)
+    total_pnl = 0.0
+    total_adj = 0.0
     for s in sessions:
         started = s.created_at.strftime("%Y-%m-%d %H:%M:%S") if s.created_at else "—"
+        pnl = s.current_bankroll_cents - s.initial_bankroll_cents
+        adj = getattr(s, "opening_adjustment_cents", None) or 0.0
+        total_pnl += pnl
+        total_adj += adj
+        adj_str = f"{adj/100:>+6.2f}" if abs(adj) > 1 else f"{'--':>6}"
         click.echo(
             f"{s.id:>4}  {started:>19}  {s.status:>8}  "
-            f"{s.initial_bankroll_cents/100:>9.2f}  {s.current_bankroll_cents/100:>8.4f}  "
-            f"{s.total_trades:>6}  {s.won}/{s.lost}/{s.voided}  {s.log_path}"
+            f"{s.initial_bankroll_cents/100:>9.2f}  {s.current_bankroll_cents/100:>8.2f}  "
+            f"{pnl/100:>+7.2f}  {adj_str}  "
+            f"{s.total_trades:>6}  {s.won}/{s.lost}/{s.voided}"
         )
+    click.echo("-" * 100)
+    net = total_pnl + total_adj
+    click.echo(f"{'':>4}  {'':>19}  {'':>8}  {'':>9}  {'':>8}  "
+               f"{'Session P&L:':>14} ${total_pnl/100:+.2f}  "
+               f"{'Untracked gaps:':>15} ${total_adj/100:+.2f}  "
+               f"{'Net:':>4} ${net/100:+.2f}")
 
 
 @simulate.command("report")

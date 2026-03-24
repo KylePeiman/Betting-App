@@ -224,6 +224,36 @@ class KalshiFetcher(BaseFetcher):
         print(f"  [kalshi] fetched {len(markets)} markets")
         return markets
 
+    def get_markets_by_series(self, series_tickers: list[str]) -> list[Market]:
+        """
+        Fetch open markets for specific series tickers using GET /markets?series_ticker=X.
+        Much faster than get_markets() for targeted fetches — avoids the full catalog.
+        """
+        markets: list[Market] = []
+        for series in series_tickers:
+            cursor: str | None = None
+            while True:
+                params: dict[str, Any] = {
+                    "status": "open",
+                    "series_ticker": series,
+                    "limit": 100,
+                }
+                if cursor:
+                    params["cursor"] = cursor
+                try:
+                    data = self._get("/markets", params)
+                except Exception as exc:
+                    print(f"  [kalshi] series {series} fetch error: {exc}")
+                    break
+                for m in data.get("markets") or []:
+                    parsed = self._market_from_dict(m, series_ticker=series)
+                    if parsed:
+                        markets.append(parsed)
+                cursor = data.get("cursor") or ""
+                if not cursor:
+                    break
+        return markets
+
     def get_market_status(self, ticker: str) -> dict:
         """
         Return the raw status dict for a single market ticker.

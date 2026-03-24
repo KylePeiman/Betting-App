@@ -395,7 +395,7 @@ def run_live_simulation(
     use_last_second: bool = True,
     ls_entry_window: int = 300,  # default matches last_second.ENTRY_WINDOW_SECONDS
     ls_min_yes_cents: int = 70,
-    ls_max_yes_cents: int = 92,
+    ls_max_yes_cents: int = 98,
     ls_edge_buffer_pct: float = 0.15,
     ls_stability_window_s: int = 15,
     ls_stability_threshold_pct: float = 0.003,
@@ -516,6 +516,30 @@ def run_live_simulation(
                 f"  stability={ls_stability_window_s}s/<{ls_stability_threshold_pct:.1%}"
             )
             _log(log_file, f"  [LAST-SECOND] diag log: {ls_diag_path}")
+        # Opening reconciliation (live mode, new sessions only)
+        if use_live_orders and not resume_session_id:
+            try:
+                actual_cents = fetcher.get_balance()
+                prev = (
+                    db.query(SimSession)
+                    .filter(SimSession.id != session_id, SimSession.status == "stopped")
+                    .order_by(SimSession.id.desc())
+                    .first()
+                )
+                prev_end = prev.current_bankroll_cents if prev else None
+                adj = actual_cents - initial_cents
+                sim.initial_bankroll_cents = actual_cents
+                sim.current_bankroll_cents = actual_cents
+                sim.opening_adjustment_cents = (actual_cents - prev_end) if prev_end is not None else 0.0
+                db.commit()
+                _log(log_file,
+                    f"  [RECONCILE] opening balance: Kalshi=${actual_cents/100:.2f}"
+                    + (f"  prev_session_end=${prev_end/100:.2f}  gap={sim.opening_adjustment_cents/100:+.2f}" if prev_end is not None else "")
+                    + (f"  *** untracked gap ***" if prev_end is not None and abs(sim.opening_adjustment_cents) > 5 else "")
+                )
+            except Exception as exc:
+                _log(log_file, f"  [RECONCILE] opening check failed: {exc}")
+
         _log(log_file, "=" * 65)
         _ls_diag_file.write(
             f"=== LS DIAG  session={session_id}  window={ls_entry_window}s"

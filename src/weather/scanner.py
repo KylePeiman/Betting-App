@@ -16,6 +16,18 @@ from src.fetchers.kalshi import KalshiFetcher
 from src.weather.market_parser import parse_weather_market
 from src.weather.noaa import get_forecast
 
+# Known Kalshi daily weather series tickers (high temp, low temp, precip, wind).
+# These markets have no API category, so we fetch by series directly.
+_WEATHER_SERIES: list[str] = [
+    "KXHIGHAUS", "KXHIGHCHI", "KXHIGHDEN", "KXHIGHLAX", "KXHIGHMIA",
+    "KXHIGHNY", "KXHIGHPHIL", "KXHIGHTATL", "KXHIGHTBOS", "KXHIGHTDAL",
+    "KXHIGHTDC", "KXHIGHTHOU", "KXHIGHTLV", "KXHIGHTMIN", "KXHIGHTNOLA",
+    "KXHIGHTOKC", "KXHIGHTPHX", "KXHIGHTPHX", "KXHIGHTPHX", "KXHIGHTSATX",
+    "KXHIGHTPHX", "KXHIGHTSEA", "KXHIGHTSFO",
+    "KXLOWTAUS", "KXLOWTCHI", "KXLOWTDEN", "KXLOWTLAX", "KXLOWTMIA",
+    "KXLOWTNYC", "KXLOWTPHIL",
+]
+
 
 def get_nws_probability(
     parsed: dict[str, Any],
@@ -65,6 +77,15 @@ def get_nws_probability(
         observed = max(p["wind_mph"] for p in day_periods)
     else:
         return None
+
+    if direction == "bucket":
+        lo = parsed.get("threshold_low", threshold - 0.5)
+        hi = parsed.get("threshold_high", threshold + 0.5)
+        if lo <= observed < hi:
+            return 0.70
+        if abs(observed - threshold) <= 2:
+            return 0.25
+        return 0.05
 
     return _threshold_probability(observed, threshold, direction)
 
@@ -128,13 +149,14 @@ def scan_weather_markets(
             - ``nws_prob``: The NWS-derived probability.
             - ``edge``: ``abs(nws_prob - kalshi_prob)``.
     """
-    today = datetime.date.today()
+    now = datetime.datetime.now(datetime.timezone.utc)
+    # Daily weather markets close at ~midnight ET = ~05:00 UTC next day.
+    # Treat any market closing within the next 30 hours as "today's" market.
+    window_end = now + datetime.timedelta(hours=30)
     opportunities: list[dict[str, Any]] = []
 
-    _WEATHER_CATEGORIES = ["Climate and Weather"]
-
     try:
-        markets = fetcher.get_markets(categories=_WEATHER_CATEGORIES)
+        markets = fetcher.get_markets_by_series(_WEATHER_SERIES)
     except Exception as exc:
         print(f"[weather] failed to fetch markets: {exc}")
         return opportunities
@@ -153,12 +175,12 @@ def scan_weather_markets(
             if yes_ask == 0:
                 continue
 
-            # Only include markets closing today.
+            # Only include markets that are currently open and closing within 30h.
             close_time = market.starts_at
             if close_time is None:
                 continue
 
-            if close_time.date() != today:
+            if not (now < close_time <= window_end):
                 continue
 
             # Parse market title for weather fields.

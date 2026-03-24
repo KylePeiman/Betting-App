@@ -66,6 +66,27 @@ After each tick's entry check, the engine polls `GET /markets/{ticker}` for all 
 On a YES win: bankroll increases by `(100 - entry_price_cents) * contracts / 100`.
 On a YES loss: the staked amount is already deducted; no further change.
 
+### Optimal settings (from live sim logs)
+
+Derived from sessions 13–22 (2026-03-21 through 2026-03-24). Best result: session 22 grew from $1.42 → $4.66 (+$3.24, ~228%) over ~31 hours with mostly wins.
+
+```bash
+python -m src.cli live --simulate --last-second \
+  --ls-max-yes 99 \
+  --ls-stability-window 8
+```
+
+| Flag | Optimal | Default | Reason |
+|---|---|---|---|
+| `--ls-entry-window` | 120 | 120 | Wider window (300s tested in session 19) lets in too many borderline entries |
+| `--ls-min-yes` | 70 | 70 | No change needed |
+| `--ls-max-yes` | **99** | 98 | Capping at 92¢ (sessions 13/14) rejected high-confidence bucket contracts |
+| `--ls-edge-buffer` | 0.15 | 0.15 | Dropping to 8% (session 19) caused frequent losses near bucket edges |
+| `--ls-stability-window` | **8** | 15 | 8s is fast enough for last-second entries; 15s missed valid opportunities |
+| `--ls-stability-threshold` | 0.003 | 0.003 | No change needed |
+
+**What to avoid**: session 19 (window=300s, edge_buf=8%, min_yes=60¢) lost $4.75 in one session — entering too early with a loose edge requirement let volatile 15M candles go the wrong way before settlement.
+
 ### Key implementation files
 
 - `src/engine/last_second.py` — `PriceTracker`, `find_matching_bucket()`, `scan_last_second_opportunities()`

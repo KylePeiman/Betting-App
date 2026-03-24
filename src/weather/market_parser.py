@@ -149,13 +149,24 @@ _BELOW_PATTERN = re.compile(
 )
 
 # ---------------------------------------------------------------------------
-# Threshold patterns — e.g. "75\u00b0F", "75 degrees", "0.5 inches", "25 mph"
+# Threshold patterns — e.g. "75°F", "75 degrees", ">73°", "be 89-90°"
 # ---------------------------------------------------------------------------
 
+# Standard single-value threshold: "75°F", "75 degrees", "0.5 inches", "25 mph"
 _THRESHOLD_PATTERN = re.compile(
-    r"(\d+(?:\.\d+)?)\s*(?:\u00b0\s*F|degrees|inches|inch|mph|in\.?)\b",
+    r"(\d+(?:\.\d+)?)\s*(?:\u00b0\s*F?|degrees|inches|inch|mph|in\.?)\b",
     re.IGNORECASE,
 )
+
+# Bucket range: "be 89-90°" or "be 89-90°F" — the °/°F may be missing or garbled
+_BUCKET_PATTERN = re.compile(
+    r"\bbe\s+(\d+(?:\.\d+)?)[–\-](\d+(?:\.\d+)?)",
+    re.IGNORECASE,
+)
+
+# Explicit > / < signs: ">73°", "<66°"
+_GT_PATTERN = re.compile(r">\s*(\d+(?:\.\d+)?)")
+_LT_PATTERN = re.compile(r"<\s*(\d+(?:\.\d+)?)")
 
 
 # ---------------------------------------------------------------------------
@@ -268,11 +279,14 @@ def parse_weather_market(market: Any) -> Optional[Dict[str, Any]]:
         ``threshold``, and ``direction``; or ``None`` if any required
         field cannot be determined.
     """
-    title: str = getattr(market, "event_name", "") or getattr(
+    raw_title: str = getattr(market, "event_name", "") or getattr(
         market, "name", ""
     )
-    if not title:
+    if not raw_title:
         return None
+
+    # Strip markdown bold markers so regex patterns match cleanly.
+    title = raw_title.replace("**", "").replace("*", "")
 
     city_result = _match_city(title)
     if city_result is None:
@@ -287,6 +301,40 @@ def parse_weather_market(market: Any) -> Optional[Dict[str, Any]]:
     if metric is None:
         return None
 
+    # --- Direction + threshold: three formats ---
+
+    # 1. Bucket range: "be 89-90°"
+    bucket_m = _BUCKET_PATTERN.search(title)
+    if bucket_m:
+        lo, hi = float(bucket_m.group(1)), float(bucket_m.group(2))
+        return {
+            "city": city, "lat": lat, "lon": lon,
+            "date": date, "metric": metric,
+            "threshold": (lo + hi) / 2,
+            "threshold_low": lo,
+            "threshold_high": hi,
+            "direction": "bucket",
+        }
+
+    # 2. Explicit >X or <X sign
+    gt_m = _GT_PATTERN.search(title)
+    lt_m = _LT_PATTERN.search(title)
+    if gt_m and not lt_m:
+        return {
+            "city": city, "lat": lat, "lon": lon,
+            "date": date, "metric": metric,
+            "threshold": float(gt_m.group(1)),
+            "direction": "above",
+        }
+    if lt_m and not gt_m:
+        return {
+            "city": city, "lat": lat, "lon": lon,
+            "date": date, "metric": metric,
+            "threshold": float(lt_m.group(1)),
+            "direction": "below",
+        }
+
+    # 3. Word-based direction + numeric threshold
     direction = _match_direction(title)
     if direction is None:
         return None
